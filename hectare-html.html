@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Hectare Uberlândia · Simulador de Vendas</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0D1117}</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+window.storage={
+  get:(k)=>{try{const v=localStorage.getItem(k);return Promise.resolve(v?{key:k,value:v}:null)}catch{return Promise.resolve(null)}},
+  set:(k,v)=>{try{localStorage.setItem(k,v);return Promise.resolve({key:k,value:v})}catch{return Promise.resolve(null)}},
+  delete:(k)=>{try{localStorage.removeItem(k);return Promise.resolve({key:k,deleted:true})}catch{return Promise.resolve(null)}},
+  list:(p="")=>{try{const keys=Object.keys(localStorage).filter(k=>k.startsWith(p));return Promise.resolve({keys})}catch{return Promise.resolve({keys:[]})}}
+}
+</script>
+
+<script type="text/babel">
+const {useState,useEffect,useMemo,useCallback,useRef}=React
+
+const CSS=`
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
+.happ{--bg:#0D1117;--s1:#161B22;--s2:#1F2937;--bd:#2D3748;--gr:#22C55E;--bl:#3B82F6;--ye:#F59E0B;--re:#EF4444;--t1:#F0F4F8;--t2:#94A3B8;--t3:#64748B;--gr-bg:rgba(34,197,94,.1);--bl-bg:rgba(59,130,246,.1);--ye-bg:rgba(245,158,11,.1);--re-bg:rgba(239,68,68,.1);box-sizing:border-box;background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.6;padding:16px;min-height:100vh}
+.happ *{box-sizing:border-box;margin:0;padding:0}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--bd);margin-bottom:20px;flex-wrap:wrap;gap:8px}
+.logo-icon{width:36px;height:36px;background:var(--gr);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.logo-name{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--t1)}
+.logo-sub{font-size:11px;color:var(--t3)}
+.tabs{display:flex;gap:4px;background:var(--s1);border-radius:10px;padding:4px;margin-bottom:20px}
+.tab{flex:1;padding:8px 10px;border-radius:7px;border:none;background:transparent;color:var(--t2);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;transition:all .15s;text-align:center}
+.tab.act{background:var(--s2);color:var(--t1);border:1px solid var(--bd)}
+.stepr{display:flex;align-items:center;margin-bottom:24px}
+.step-n{width:27px;height:27px;border-radius:50%;border:2px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;font-family:'Syne',sans-serif;color:var(--t3);flex-shrink:0;transition:all .2s}
+.step-n.act{border-color:var(--gr);color:var(--gr);background:var(--gr-bg)}
+.step-n.done{border-color:var(--gr);background:var(--gr);color:#000}
+.step-lbl{font-size:12px;color:var(--t3);font-weight:500;margin-left:7px}
+.step-lbl.act{color:var(--gr)}
+.step-line{flex:1;height:1px;background:var(--bd);margin:0 8px}
+.step-line.done{background:var(--gr)}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.ctitle{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.ctitle .dot{width:6px;height:6px;border-radius:50%;background:var(--gr);flex-shrink:0}
+.ctitle .dot.bl{background:var(--bl)}.ctitle .dot.ye{background:var(--ye)}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;padding:6px 8px;text-align:left;border-bottom:1px solid var(--bd);white-space:nowrap}
+.tbl td{padding:6px 8px;border-bottom:1px solid var(--bd);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl .total-row td{padding-top:10px;font-weight:600;border-top:1px solid var(--bd);border-bottom:none}
+input,select{background:var(--s2);border:1px solid var(--bd);border-radius:7px;color:var(--t1);font-family:'DM Sans',sans-serif;font-size:13px;padding:6px 9px;width:100%;outline:none;transition:border .15s}
+input:focus,select:focus{border-color:var(--bl)}
+select option{background:var(--s2)}
+input[type=number]{-moz-appearance:textfield}
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+input[type=range]{-webkit-appearance:none;background:var(--bd);height:4px;border-radius:2px;padding:0;cursor:pointer;width:100%}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--gr);cursor:pointer}
+.inp-sm{font-size:12px;padding:4px 7px}
+.inp-num{font-size:12px;padding:4px 7px;text-align:right}
+.disc-badge{font-size:12px;font-weight:700;color:var(--re);min-width:34px;text-align:right}
+.range-wrap{display:flex;align-items:center;gap:7px}
+.lbl{display:block;font-size:12px;color:var(--t2);font-weight:500;margin-bottom:5px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.w1{grid-template-columns:1fr}
+@media(max-width:560px){.form-row{grid-template-columns:1fr}}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.metric{background:var(--s2);border-radius:10px;padding:12px 14px;border:1px solid var(--bd)}
+.metric.green{border-color:rgba(34,197,94,.35);background:var(--gr-bg)}
+.metric.yellow{border-color:rgba(245,158,11,.35);background:var(--ye-bg)}
+.metric.red{border-color:rgba(239,68,68,.35);background:var(--re-bg)}
+.metric.blue{border-color:rgba(59,130,246,.35);background:var(--bl-bg)}
+.m-label{font-size:11px;color:var(--t3);margin-bottom:3px}
+.m-val{font-family:'Syne',sans-serif;font-size:19px;font-weight:700;color:var(--t1)}
+.m-val.green{color:var(--gr)}.m-val.yellow{color:var(--ye)}.m-val.red{color:var(--re)}.m-val.blue{color:var(--bl)}
+.m-sub{font-size:11px;color:var(--t3);margin-top:2px}
+.prog{height:5px;background:var(--bd);border-radius:3px;margin-top:7px;overflow:hidden}
+.prog-fill{height:100%;border-radius:3px;transition:width .3s}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+.badge-green{background:var(--gr-bg);color:var(--gr);border:1px solid rgba(34,197,94,.3)}
+.badge-yellow{background:var(--ye-bg);color:var(--ye);border:1px solid rgba(245,158,11,.3)}
+.badge-red{background:var(--re-bg);color:var(--re);border:1px solid rgba(239,68,68,.3)}
+.badge-blue{background:var(--bl-bg);color:var(--bl);border:1px solid rgba(59,130,246,.3)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;transition:all .15s}
+.btn-gr{background:var(--gr);color:#000}.btn-gr:hover{background:#16A34A}
+.btn-bl{background:var(--bl);color:#fff}.btn-bl:hover{background:#2563EB}
+.btn-re{background:var(--re-bg);color:var(--re);border:1px solid rgba(239,68,68,.3)}.btn-re:hover{background:var(--re);color:#fff}
+.btn-sec{background:var(--s2);color:var(--t1);border:1px solid var(--bd)}.btn-sec:hover{border-color:var(--bl);color:var(--bl)}
+.btn-sm{padding:5px 11px;font-size:12px;border-radius:6px}
+.btn-ghost{background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px;font-family:'DM Sans',sans-serif}.btn-ghost:hover{color:var(--re);background:var(--re-bg)}
+.btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.alert-warn{padding:9px 14px;border-radius:8px;font-size:12px;font-weight:500;display:flex;align-items:center;gap:7px;background:var(--re-bg);color:var(--re);border:1px solid rgba(239,68,68,.3);margin-bottom:10px}
+.toggle-g{display:flex;background:var(--s2);border-radius:7px;padding:3px;gap:2px;max-width:260px}
+.tog-btn{flex:1;padding:5px 10px;border-radius:5px;border:none;background:transparent;color:var(--t2);cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif}.tog-btn.act{background:var(--s1);color:var(--t1);border:1px solid var(--bd)}
+.hist-row{padding:12px 0;border-bottom:1px solid var(--bd)}.hist-row:last-child{border-bottom:none}
+.hist-top{display:flex;align-items:flex-start;gap:12px}
+.hist-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.empty{text-align:center;padding:36px;color:var(--t3);font-size:13px}
+.notify{font-size:12px;color:var(--gr);background:var(--gr-bg);padding:4px 10px;border-radius:999px;border:1px solid rgba(34,197,94,.3)}
+.esign-box{background:var(--s2);border-radius:8px;padding:11px 14px;font-size:12px;color:var(--t2);line-height:2;margin-bottom:14px}
+.ovx{overflow-x:auto}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px}
+.modal{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:24px;max-width:400px;width:100%}
+.modal h3{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:16px;color:var(--t1)}
+.pin-input{font-size:20px;text-align:center;letter-spacing:12px;font-weight:700;padding:10px}
+`
+
+const COEF_PV=0.7507,COEF_CMV=0.8976
+const DP=[
+  {name:"AGRAS T100",price:139000,cmv:93000,maxDisc:9000},
+  {name:"DB2160 Intelligent Flight Battery",price:29000,cmv:18000,maxDisc:3000},
+  {name:"C12000 Intelligent Power Supply",price:19000,cmv:12000,maxDisc:2000},
+  {name:"D14000iE Multifuncional Inverter Generator (BR)",price:30400,cmv:20000,maxDisc:2400},
+  {name:"T100 Spreading System (dispersor)",price:19000,cmv:12000,maxDisc:2000},
+  {name:"T100 Mist Nozzle Package",price:12900,cmv:8000,maxDisc:900},
+  {name:"T100 Lift System Kit",price:7900,cmv:4700,maxDisc:900},
+  {name:"AGRAS T70P",price:92000,cmv:60000,maxDisc:7000},
+  {name:"T70 Spreading System (dispersor)",price:11000,cmv:6900,maxDisc:1000},
+  {name:"T70 Mist Nozzle Package",price:9900,cmv:6000,maxDisc:900},
+  {name:"T70 Lift System Kit",price:4900,cmv:3100,maxDisc:400},
+  {name:"DB2160 Air Cooled Heat Sink",price:2900,cmv:1700,maxDisc:400},
+  {name:"AGRAS T25P",price:59000,cmv:40000,maxDisc:5000},
+  {name:"DB800 Intelligent Flight Battery",price:15000,cmv:9000,maxDisc:1000},
+  {name:"C8000 Intelligent Battery Station",price:15000,cmv:9000,maxDisc:1000},
+  {name:"D6000i Multifuncional Inverter Generator (BR)",price:22900,cmv:13800,maxDisc:1900},
+  {name:"T25p Spreading System",price:9900,cmv:6200,maxDisc:900},
+  {name:"T25p Centrifugal Atomizing Sprinkler Package",price:5900,cmv:3600,maxDisc:600},
+  {name:"AGRAS T50",price:89000,cmv:56000,maxDisc:8000},
+  {name:"DB1560 Intelligent Flight Battery",price:20000,cmv:13000,maxDisc:1000},
+  {name:"C10000 Intelligent Battery Station",price:16000,cmv:9000,maxDisc:2000},
+  {name:"DJI12000IEP Multifuncional Inverter Generator (BR)",price:33000,cmv:21000,maxDisc:3000},
+  {name:"T50 Spreading System",price:9000,cmv:6000,maxDisc:500},
+  {name:"T50 Centrifugal Atomizing Sprinkler Package",price:6600,cmv:4000,maxDisc:600},
+  {name:"AGRAS T25",price:55000,cmv:36500,maxDisc:5000},
+  {name:"T25 Spreading System",price:8000,cmv:5000,maxDisc:1000},
+  {name:"T25 Atomized Sprinkler Package",price:5900,cmv:3600,maxDisc:600},
+  {name:"Mavic 3 Multispectral",price:42000,cmv:29000,maxDisc:2100},
+  {name:"Carregador 65w",price:490,cmv:315,maxDisc:49},
+  {name:"Bateria WB37",price:990,cmv:615,maxDisc:129},
+  {name:"HUB",price:890,cmv:570,maxDisc:92},
+  {name:"Misturador 300L",price:9000,cmv:6000,maxDisc:600},
+  {name:"Misturador 600L",price:12000,cmv:8000,maxDisc:800},
+  {name:"Tanque 400L",price:2000,cmv:1200,maxDisc:320},
+  {name:"Relay",price:7650,cmv:5100,maxDisc:510},
+  {name:"Tripe + Base",price:6750,cmv:4500,maxDisc:450},
+]
+const DB=[
+  {name:"CAAR",cost:1000},{name:"Carregador 65w",cost:315},{name:"Bateria WB37",cost:615},
+  {name:"HUB",cost:570},{name:"Misturador 300L",cost:6000},{name:"Misturador 600L",cost:8000},
+  {name:"Tanque 400L",cost:1200},{name:"DB2160 Air Cooled Heat Sink",cost:1700},
+]
+const DS=[{name:"Davi Teixeira Neri"},{name:"Vendedor 2"},{name:"Vendedor 3"}]
+const DEFAULT_PIN="1234"
+
+const fmtN=n=>(isNaN(n)||n===0)?"—":n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})
+const fmtR=n=>(isNaN(n)||n===0)?"—":"R$ "+fmtN(n)
+const fmtP=n=>isNaN(n)?"—":(n*100).toFixed(1)+"%"
+
+function Badge({color,children}){return <span className={`badge badge-${color}`}>{children}</span>}
+
+function Metric({label,value,sub,color,progress}){
+  const bars={green:"var(--gr)",yellow:"var(--ye)",red:"var(--re)",blue:"var(--bl)"}
+  return(
+    <div className={`metric${color?" "+color:""}`}>
+      <div className="m-label">{label}</div>
+      <div className={`m-val${color?" "+color:""}`}>{value}</div>
+      {sub&&<div className="m-sub">{sub}</div>}
+      {progress!==undefined&&<div className="prog"><div className="prog-fill" style={{width:(progress*100)+"%",background:bars[color]||"var(--gr)"}}/></div>}
+    </div>
+  )
+}
+
+function PinModal({onSuccess,onClose,storedPin}){
+  const [pin,setPin]=useState("")
+  const [err,setErr]=useState(false)
+  const check=()=>{if(pin===storedPin)onSuccess();else{setErr(true);setPin("");setTimeout(()=>setErr(false),1500)}}
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h3>🔒 Área restrita</h3>
+        <p style={{fontSize:13,color:"var(--t2)",marginBottom:16}}>Digite o PIN de administrador.</p>
+        <input className="pin-input" type="password" maxLength={6} placeholder="••••" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,""))} onKeyDown={e=>e.key==="Enter"&&check()} autoFocus/>
+        {err&&<p style={{color:"var(--re)",fontSize:12,marginTop:8,textAlign:"center"}}>PIN incorreto.</p>}
+        <div className="btn-row" style={{marginTop:16}}>
+          <button className="btn btn-sec btn-sm" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-gr btn-sm" onClick={check}>Entrar</button>
+        </div>
+        <p style={{fontSize:11,color:"var(--t3)",marginTop:12,textAlign:"center"}}>PIN padrão: 1234</p>
+      </div>
+    </div>
+  )
+}
+
+function buildContractHTML({lineItems,bonifItems,cli,meta,tipo,total}){
+  const today=new Date()
+  const months=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"]
+  const dateExt=`${today.getDate()} de ${months[today.getMonth()]} de ${today.getFullYear()}`
+  const docTipo=tipo==="juridica"?"CNPJ":"CPF"
+  const tipoPessoa=tipo==="juridica"?"pessoa jurídica de direito privado":"pessoa física"
+  const kitNome=lineItems.length>0?lineItems.map(i=>`${i.name}${i.qty>1?" (×"+i.qty+")":""}`).join(", "):"(itens conforme abaixo)"
+  const kitRows=lineItems.map(i=>`<tr><td>${i.name}</td><td style="text-align:center">${i.qty}</td><td style="text-align:right">R$ ${fmtN(i.unitPrice)}</td><td style="text-align:right;font-weight:bold">R$ ${fmtN(i.subtotal)}</td></tr>`).join("")
+  const bRows=bonifItems.map(b=>`<tr><td>${b.name}</td><td style="text-align:center">${b.qty}</td></tr>`).join("")
+  const css=`@page{size:A4;margin:2.5cm 2cm}body{font-family:Arial,sans-serif;font-size:11pt;color:#111;line-height:1.7}h1{text-align:center;font-size:13pt;margin:0 0 2px}h2{text-align:center;font-size:10.5pt;font-weight:normal;color:#444;margin:0 0 22px}.sec{font-size:11pt;font-weight:bold;margin:20px 0 8px;text-transform:uppercase;border-bottom:1.5px solid #111;padding-bottom:3px}p{margin:5px 0;text-align:justify}ul{margin:6px 0 6px 20px}li{margin:3px 0}table{width:100%;border-collapse:collapse;margin:10px 0;font-size:10.5pt}th{background:#f0f0f0;font-weight:bold;padding:6px 10px;border:1px solid #ccc;text-align:left}td{padding:5px 10px;border:1px solid #ccc}.sg{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:16px}.sl{border-top:1px solid #000;margin:50px 0 5px}.sn{text-align:center;font-size:10.5pt}.pb{position:fixed;top:16px;right:16px;background:#22C55E;color:#000;border:none;padding:10px 22px;font-weight:bold;cursor:pointer;border-radius:6px;font-size:11pt}@media print{.pb{display:none}}`
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Contrato – ${cli.nome||"Cliente"}</title><style>${css}</style></head><body>
+<button class="pb" onclick="window.print()">⬇ Salvar PDF</button>
+<h1>CONTRATO DE COMPRA E VENDA HECTARE</h1>
+<h2>Equipamentos DJI Agras para Pulverização Agrícola</h2>
+<p class="sec">Qualificação das Partes</p>
+<p><strong>VENDEDORA: HECTARE UBERLANDIA DRONE LTDA</strong>, CNPJ <strong>64.985.431/0001-37</strong>, IE <strong>54330720019</strong>, sede na <strong>Av. Floriano Peixoto, nº 4431, Bairro Custódio Pereira, Uberlândia/MG, CEP 38.405-184</strong>, representada por <strong>DAVI TEIXEIRA NERI</strong>, brasileiro, solteiro, RG <strong>3797296 SPTC/ES</strong>, CPF <strong>145.015.787-42</strong>, doravante <strong>VENDEDORA</strong>.</p>
+<p><strong>COMPRADOR(A): ${cli.nome||"___"}</strong>, ${tipoPessoa}, ${docTipo} <strong>${cli.doc||"___"}</strong>, endereço <strong>${cli.end||"___"}</strong>, representado(a) por <strong>${cli.repNome||"___"}</strong>, CPF <strong>${cli.repCpf||"___"}</strong>, doravante <strong>COMPRADOR(A)</strong>.</p>
+<p class="sec">Cláusula 1ª – Do Objeto</p>
+<p><strong>1.2. Kit principal:</strong> <strong>${kitNome}</strong></p>
+<table><thead><tr><th>Produto</th><th style="width:50px">Qtd</th><th style="width:120px">Preço Un.</th><th style="width:130px">Subtotal</th></tr></thead><tbody>${kitRows}</tbody><tfoot><tr><td colspan="3" style="text-align:right;font-weight:bold;background:#f0f0f0">TOTAL</td><td style="text-align:right;font-weight:bold;background:#f0f0f0">R$ ${fmtN(total)}</td></tr></tfoot></table>
+${bonifItems.length>0?`<p><strong>1.3. Itens bonificados</strong> (sem custo adicional):</p><table><thead><tr><th>Item</th><th>Qtd</th></tr></thead><tbody>${bRows}</tbody></table>`:`<p><strong>1.3.</strong> Não há itens bonificados nesta venda.</p>`}
+<p>1.4. Equipamentos novos, originais DJI, com homologação ANATEL. Números de série constarão da Nota Fiscal.</p>
+<p class="sec">Cláusula 2ª – Do Preço e Pagamento</p>
+<p>2.1. Valor total: <strong>R$ ${fmtN(total)}</strong>. Pagamento: <strong>${meta.pgto||"___"}</strong>.</p>
+<p>2.2. Inadimplemento superior a 15 dias: multa de 2%, juros de 1% ao mês pro rata die e correção pelo IPCA/IBGE.</p>
+<p class="sec">Cláusula 3ª – Da Entrega</p>
+<p>3.1. Entrega confirmada por escrito pela VENDEDORA. Frete por conta da VENDEDORA. Propriedade transferida após quitação integral.</p>
+<p class="sec">Cláusula 4ª – Da Garantia DJI</p>
+<p>4.1. Aeronave: conforme Política DJI em www.dji.com/service/policy. Baterias: 12 meses ou 1.500 ciclos. Misturador: 30 dias.</p>
+<p>4.2. Perda de garantia: dano por terceiros; acidentes; uso irregular; adulteração do número de série; abertura não autorizada.</p>
+<p class="sec">Cláusula 5ª – Responsabilidade</p>
+<p>5.1. COMPRADOR(A) assume integral responsabilidade pela operação. Responsabilidade da VENDEDORA limitada ao valor pago. Não responde por lucros cessantes, perda de safra ou danos indiretos.</p>
+<p class="sec">Cláusula 6ª – Obrigações do(a) Comprador(a)</p>
+<ul>
+<li>Operar conforme RBAC-E nº 94/2017 e normas DECEA;</li>
+<li>Cadastrar no SISANT; solicitar SARPAS quando exigido; manter seguro RETA quando obrigatório;</li>
+<li>Manter firmwares atualizados; não permitir reparo por assistência não autorizada pela DJI;</li>
+<li>Conservar Nota Fiscal e embalagem original durante a garantia.</li>
+</ul>
+<p class="sec">Cláusulas 7ª a 11ª – Disposições Gerais</p>
+<p>Rescisão por mútuo acordo ou inadimplemento (notificação de 10 dias). Dados pessoais tratados conforme LGPD (Lei 13.709/2018). Assinaturas eletrônicas válidas (MP 2.200-2/2001 e Lei 14.063/2020). Foro: Comarca de Uberlândia/MG.</p>
+<p style="text-align:center;margin-top:28px">Uberlândia/MG, <strong>${dateExt}</strong>.</p>
+<div class="sg">
+  <div><div class="sl"></div><div class="sn"><strong>VENDEDORA</strong><br>HECTARE UBERLANDIA DRONE LTDA<br>CNPJ: 64.985.431/0001-37<br>Davi Teixeira Neri</div></div>
+  <div><div class="sl"></div><div class="sn"><strong>COMPRADOR(A)</strong><br>${cli.nome||"___"}<br>${docTipo}: ${cli.doc||"___"}</div></div>
+</div>
+<p style="margin-top:32px"><strong>TESTEMUNHAS:</strong></p>
+<div class="sg">
+  <div><div class="sl"></div><div class="sn">1) ${meta.t1||"___"}</div></div>
+  <div><div class="sl"></div><div class="sn">2) ${meta.t2||"___"}</div></div>
+</div>
+</body></html>`
+}
+
+function App(){
+  const [tab,setTab]=useState("pedido")
+  const [step,setStep]=useState(1)
+  const [ctab,setCtab]=useState("produtos")
+  const [loaded,setLoaded]=useState(false)
+  const [notify,setNotify]=useState("")
+  const [showPin,setShowPin]=useState(false)
+  const [cfgAuth,setCfgAuth]=useState(false)
+  const [searchHist,setSearchHist]=useState("")
+  const [products,setProducts]=useState(DP)
+  const [bonifs,setBonifs]=useState(DB)
+  const [sellers,setSellers]=useState(DS)
+  const [history,setHistory]=useState([])
+  const [adminPin,setAdminPin]=useState(DEFAULT_PIN)
+  const [items,setItems]=useState([{id:100,product:"",qty:1,discPct:0}])
+  const [bItems,setBItems]=useState([{id:101,item:"",qty:1}])
+  const [tipo,setTipo]=useState("juridica")
+  const [cli,setCli]=useState({nome:"",doc:"",end:"",repNome:"",repCpf:"",email:"",tel:""})
+  const [meta,setMeta]=useState({vend:"",pgto:"",prazo:"",local:"",t1:"",t2:""})
+  const nextId=useRef(100)
+  const newId=()=>++nextId.current
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const rs=await Promise.allSettled(["hect_p","hect_b","hect_s","hect_h","hect_pin"].map(k=>window.storage.get(k)))
+        if(rs[0].value?.value)setProducts(JSON.parse(rs[0].value.value))
+        if(rs[1].value?.value)setBonifs(JSON.parse(rs[1].value.value))
+        if(rs[2].value?.value)setSellers(JSON.parse(rs[2].value.value))
+        if(rs[3].value?.value)setHistory(JSON.parse(rs[3].value.value))
+        if(rs[4].value?.value)setAdminPin(rs[4].value.value)
+      }catch(e){}
+      setLoaded(true)
+    }
+    load()
+  },[])
+
+  useEffect(()=>{if(loaded)window.storage.set("hect_p",JSON.stringify(products)).catch(()=>{})},[products,loaded])
+  useEffect(()=>{if(loaded)window.storage.set("hect_b",JSON.stringify(bonifs)).catch(()=>{})},[bonifs,loaded])
+  useEffect(()=>{if(loaded)window.storage.set("hect_s",JSON.stringify(sellers)).catch(()=>{})},[sellers,loaded])
+  useEffect(()=>{if(loaded)window.storage.set("hect_h",JSON.stringify(history)).catch(()=>{})},[history,loaded])
+
+  function msg(t){setNotify(t);setTimeout(()=>setNotify(""),2500)}
+
+  const calcs=useMemo(()=>{
+    const pm={};products.forEach(p=>{pm[p.name]=p})
+    const bm={};bonifs.forEach(b=>{bm[b.name]=b})
+    let tp=0,tsd=0,tcmv=0,tdm=0
+    items.forEach(({product,qty,discPct})=>{
+      const p=pm[product];if(!p)return
+      const n=+qty||0,d=+discPct||0
+      tp+=(p.price-p.maxDisc*d)*n;tsd+=p.price*n;tcmv+=p.cmv*n;tdm+=(p.price-p.maxDisc)*n
+    })
+    let tb=0;bItems.forEach(({item,qty})=>{const b=bm[item];if(b)tb+=b.cost*(+qty||0)})
+    const cc=tcmv+tb,bmax=tp*.05
+    const mcMax=tsd>0?COEF_PV*tsd-COEF_CMV*tcmv:0
+    const mcReal=tp>0?COEF_PV*tp-COEF_CMV*cc:0
+    const mcMin=tdm>0?COEF_PV*tdm-COEF_CMV*(tcmv+.05*tdm):0
+    const rng=mcMax-mcMin
+    const aprov=rng>0?Math.max(0,Math.min(1,(mcReal-mcMin)/rng)):0
+    const comPct=.01+.02*aprov,comR=comPct*tp
+    const col=aprov>=.7?"green":aprov>=.4?"yellow":"red"
+    const status=aprov>=.7?"ÓTIMO":aprov>=.4?"BOM":"BAIXO"
+    const alcada=aprov>=.7?"Vendedor":aprov>=.4?"Gerente":"Diretor"
+    return{tp,tsd,tcmv,tdm,tb,cc,bmax,aprov,comPct,comR,col,status,alcada}
+  },[items,bItems,products,bonifs])
+
+  function updItem(i,k,v){const n=[...items];n[i]={...n[i],[k]:v};if(k==="product")n[i].discPct=0;setItems(n)}
+  function updBonif(i,k,v){const n=[...bItems];n[i]={...n[i],[k]:v};setBItems(n)}
+  function updProd(i,k,v){const n=[...products];n[i]={...n[i],[k]:k==="name"?v:(+v||0)};setProducts(n)}
+  function updBon(i,k,v){const n=[...bonifs];n[i]={...n[i],[k]:k==="name"?v:(+v||0)};setBonifs(n)}
+  function updSel(i,v){const n=[...sellers];n[i]={name:v};setSellers(n)}
+  function reset(w){if(w==="p"){setProducts(DP);msg("✓ Produtos resetados")}if(w==="b"){setBonifs(DB);msg("✓ Bonificações resetadas")}if(w==="s"){setSellers(DS);msg("✓ Vendedores resetados")}}
+
+  function buildContractData(){
+    const pm={};products.forEach(p=>{pm[p.name]=p})
+    const bm={};bonifs.forEach(b=>{bm[b.name]=b})
+    const lineItems=items.filter(i=>pm[i.product]).map(i=>{
+      const p=pm[i.product],n=+i.qty||1,d=+i.discPct||0,pf=p.price-p.maxDisc*d
+      return{name:i.product,qty:n,unitPrice:pf,subtotal:pf*n}
+    })
+    const bonifItems=bItems.filter(b=>bm[b.item]).map(b=>({name:b.item,qty:+b.qty||1}))
+    return{lineItems,bonifItems,cli:{...cli},meta:{...meta},tipo,total:calcs.tp}
+  }
+
+  function openContract(data){
+    const html=buildContractHTML(data)
+    const w=window.open("","_blank")
+    if(!w){alert("Permita pop-ups para gerar o contrato.");return}
+    w.document.write(html);w.document.close()
+  }
+
+  function saveOrder(){
+    const pm={};products.forEach(p=>{pm[p.name]=p})
+    const bm={};bonifs.forEach(b=>{bm[b.name]=b})
+    const prodList=items.filter(i=>pm[i.product]).map(i=>`${i.product} x${+i.qty||1} (${((+i.discPct||0)*100).toFixed(0)}% desc)`).join(" | ")
+    const bonList=bItems.filter(b=>bm[b.item]).map(b=>`${b.item} x${b.qty||1}`).join(" | ")
+    const o={id:Date.now(),date:new Date().toLocaleDateString("pt-BR"),client:cli.nome||"(sem nome)",doc:cli.doc||"—",total:calcs.tp,vend:meta.vend||"—",aprov:calcs.aprov,com:calcs.comR,comPct:calcs.comPct,status:calcs.status,pgto:meta.pgto||"—",local:meta.local||"—",email:cli.email||"—",tel:cli.tel||"—",prodList,bonList,tipo,contractData:buildContractData()}
+    setHistory([o,...history].slice(0,200));msg("✓ Salvo no histórico")
+  }
+
+  function deleteOrder(id){setHistory(history.filter(h=>h.id!==id));msg("✓ Pedido excluído")}
+
+  const exportCSV=useCallback(()=>{
+    if(!history.length){msg("Nenhum pedido para exportar");return}
+    const hdr=["Data","Cliente","Doc","Tipo","Vendedor","Produtos","Bonificações","Total (R$)","Aproveitamento (%)","Comissão (R$)","Comissão (%)","Status","Pagamento","Local","Email","Telefone"]
+    const rows=history.map(h=>[h.date,h.client,h.doc,h.tipo||"—",h.vend,`"${h.prodList||""}"`,`"${h.bonList||""}"`,h.total?.toFixed(2)||"0",((h.aprov||0)*100).toFixed(1),(h.com||0).toFixed(2),((h.comPct||0)*100).toFixed(2),h.status||"—",h.pgto||"—",h.local||"—",h.email||"—",h.tel||"—"])
+    const csv="\uFEFF"+[hdr.join(";"),...rows.map(r=>r.join(";"))].join("\n")
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"})
+    const url=URL.createObjectURL(blob)
+    const a=document.createElement("a");a.href=url;a.download=`hectare_pedidos_${new Date().toISOString().slice(0,10)}.csv`;a.click()
+    URL.revokeObjectURL(url);msg("✓ CSV exportado")
+  },[history])
+
+  function copyRow(h){
+    const row=[h.date,h.client,h.doc,h.tipo||"—",h.vend,h.prodList||"",h.bonList||"",h.total?.toFixed(2)||"0",((h.aprov||0)*100).toFixed(1)+"%",(h.com||0).toFixed(2),h.status||"—",h.pgto||"—"].join("\t")
+    navigator.clipboard.writeText(row).then(()=>msg("✓ Linha copiada")).catch(()=>msg("Erro ao copiar"))
+  }
+
+  function handleConfigTab(){cfgAuth?setTab("config"):setShowPin(true)}
+  function savePin(p){setAdminPin(p);window.storage.set("hect_pin",p).catch(()=>{});msg("✓ PIN atualizado")}
+
+  const stepInfo=[{n:1,l:"Pedido"},{n:2,l:"Cliente"},{n:3,l:"Contrato"}]
+  const filteredHist=searchHist?history.filter(h=>(h.client+h.vend+h.doc+h.date).toLowerCase().includes(searchHist.toLowerCase())):history
+
+  return(
+    <>
+      <style>{CSS}</style>
+      <div className="happ">
+        <div style={{maxWidth:960,margin:"0 auto"}}>
+          <div className="hdr">
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div className="logo-icon">🚁</div>
+              <div><div className="logo-name">HECTARE UBERLÂNDIA</div><div className="logo-sub">Simulador de Vendas · DJI Agras</div></div>
+            </div>
+            {notify&&<span className="notify">{notify}</span>}
+          </div>
+          <div className="tabs">
+            {[["pedido","＋ Novo pedido"],["historico","📋 Histórico"]].map(([k,l])=>(
+              <button key={k} className={`tab${tab===k?" act":""}`} onClick={()=>setTab(k)}>{l}</button>
+            ))}
+            <button className={`tab${tab==="config"?" act":""}`} onClick={handleConfigTab}>🔒 Config</button>
+          </div>
+          {showPin&&<PinModal storedPin={adminPin} onSuccess={()=>{setCfgAuth(true);setShowPin(false);setTab("config")}} onClose={()=>setShowPin(false)}/>}
+
+          {tab==="pedido"&&<>
+            <div className="stepr">
+              {stepInfo.map(({n,l},i)=>(
+                <div key={n} style={{display:"flex",alignItems:"center",flex:1}}>
+                  <div className={`step-n${n<step?" done":n===step?" act":""}`}>{n<step?"✓":n}</div>
+                  <span className={`step-lbl${n===step?" act":""}`}>{l}</span>
+                  {i<2&&<div className={`step-line${n<step?" done":""}`} style={{flex:1,marginLeft:7}}/>}
+                </div>
+              ))}
+            </div>
+            {step===1&&<>
+              <div className="card">
+                <div className="ctitle"><span className="dot"/>ITENS DO PEDIDO</div>
+                <div className="ovx">
+                  <table className="tbl">
+                    <thead><tr><th style={{minWidth:190}}>Produto</th><th style={{width:56}}>Qtd</th><th style={{width:110}}>Preço tab.</th><th style={{minWidth:155}}>% Desc.</th><th style={{width:110}}>Preço final</th><th style={{width:115}}>Subtotal</th><th style={{width:28}}/></tr></thead>
+                    <tbody>
+                      {items.map((it,idx)=>{
+                        const p=products.find(x=>x.name===it.product)
+                        const n=+it.qty||0,d=+it.discPct||0,pf=p?p.price-p.maxDisc*d:0
+                        return <tr key={it.id}>
+                          <td><select className="inp-sm" value={it.product} onChange={e=>updItem(idx,"product",e.target.value)}>
+                            <option value="">Selecione...</option>
+                            {products.map(p=><option key={p.name} value={p.name}>{p.name}</option>)}
+                          </select></td>
+                          <td><input type="number" className="inp-sm" min="1" value={it.qty} style={{textAlign:"center",width:48}} onChange={e=>updItem(idx,"qty",e.target.value)}/></td>
+                          <td style={{fontSize:12,color:"var(--t2)",whiteSpace:"nowrap"}}>{p?fmtR(p.price):"—"}</td>
+                          <td><div className="range-wrap"><input type="range" min="0" max="1" step="0.01" value={it.discPct} onChange={e=>updItem(idx,"discPct",+e.target.value)}/><span className="disc-badge">{(it.discPct*100).toFixed(0)}%</span></div></td>
+                          <td style={{fontWeight:600,whiteSpace:"nowrap",color:it.discPct>0?"var(--ye)":"var(--t1)"}}>{p?fmtR(pf):"—"}</td>
+                          <td style={{fontWeight:700,whiteSpace:"nowrap",color:"var(--gr)"}}>{p&&n>0?fmtR(pf*n):"—"}</td>
+                          <td><button className="btn-ghost" onClick={()=>setItems(items.filter((_,i)=>i!==idx))}>×</button></td>
+                        </tr>
+                      })}
+                    </tbody>
+                    <tfoot><tr className="total-row"><td colSpan={5} style={{textAlign:"right",fontSize:12,color:"var(--t2)"}}>TOTAL</td><td style={{fontFamily:"'Syne',sans-serif",fontSize:15,color:"var(--gr)",whiteSpace:"nowrap"}}>{calcs.tp>0?fmtR(calcs.tp):"—"}</td><td/></tr></tfoot>
+                  </table>
+                </div>
+                <button className="btn btn-sec btn-sm" style={{marginTop:10}} onClick={()=>setItems([...items,{id:newId(),product:"",qty:1,discPct:0}])}>+ Adicionar produto</button>
+              </div>
+              <div className="card">
+                <div className="ctitle"><span className="dot bl"/>BONIFICAÇÕES{calcs.tb>0&&<span style={{marginLeft:"auto"}}>{calcs.tb>calcs.bmax?<Badge color="red">⚠ Limite excedido</Badge>:<Badge color="green">OK</Badge>}</span>}</div>
+                <div className="ovx">
+                  <table className="tbl">
+                    <thead><tr><th style={{minWidth:170}}>Item</th><th style={{width:56}}>Qtd</th><th style={{width:115}}>Custo un.</th><th style={{width:115}}>Total</th><th style={{width:28}}/></tr></thead>
+                    <tbody>
+                      {bItems.map((b,idx)=>{
+                        const bf=bonifs.find(x=>x.name===b.item)
+                        const tot=bf?bf.cost*(+b.qty||0):0
+                        return <tr key={b.id}>
+                          <td><select className="inp-sm" value={b.item} onChange={e=>updBonif(idx,"item",e.target.value)}><option value="">Selecione...</option>{bonifs.map(b=><option key={b.name} value={b.name}>{b.name}</option>)}</select></td>
+                          <td><input type="number" className="inp-sm" min="1" value={b.qty} style={{textAlign:"center",width:48}} onChange={e=>updBonif(idx,"qty",e.target.value)}/></td>
+                          <td style={{fontSize:12,color:"var(--t2)",whiteSpace:"nowrap"}}>{bf?fmtR(bf.cost):"—"}</td>
+                          <td style={{fontWeight:600,whiteSpace:"nowrap",color:"var(--bl)"}}>{tot>0?fmtR(tot):"—"}</td>
+                          <td><button className="btn-ghost" onClick={()=>setBItems(bItems.filter((_,i)=>i!==idx))}>×</button></td>
+                        </tr>
+                      })}
+                    </tbody>
+                    <tfoot><tr className="total-row"><td colSpan={3} style={{textAlign:"right",fontSize:12,color:"var(--t2)"}}>TOTAL · LIMITE (5%)</td><td><span style={{color:calcs.tb>calcs.bmax?"var(--re)":"var(--bl)",fontWeight:600,whiteSpace:"nowrap"}}>{fmtR(calcs.tb)}</span><span style={{color:"var(--t3)",fontSize:11}}> · {fmtR(calcs.bmax)}</span></td><td/></tr></tfoot>
+                  </table>
+                </div>
+                {calcs.tb>calcs.bmax&&calcs.tb>0&&<div className="alert-warn" style={{marginTop:10}}>⚠ Bonificação excede 5% do pedido</div>}
+                <button className="btn btn-sec btn-sm" style={{marginTop:10}} onClick={()=>setBItems([...bItems,{id:newId(),item:"",qty:1}])}>+ Adicionar bonificação</button>
+              </div>
+              {calcs.tp>0&&<>
+                <div className="card">
+                  <div className="ctitle"><span className="dot ye"/>APROVAÇÃO DO PEDIDO</div>
+                  <div className="metrics">
+                    <Metric label="Aproveitamento" value={fmtP(calcs.aprov)} sub={<Badge color={calcs.col}>{calcs.status}</Badge>} color={calcs.col} progress={calcs.aprov}/>
+                    <Metric label="Alçada" value={calcs.alcada} color={calcs.col}/>
+                    <Metric label="Total do pedido" value={fmtR(calcs.tp)}/>
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="ctitle"><span className="dot bl"/>SUA COMISSÃO</div>
+                  <div className="metrics" style={{gridTemplateColumns:"1fr 1fr"}}>
+                    <Metric label="Valor da comissão" value={fmtR(calcs.comR)} color="blue"/>
+                    <Metric label="Percentual" value={fmtP(calcs.comPct)} sub="sobre o valor do pedido" color="blue"/>
+                  </div>
+                </div>
+              </>}
+              <div className="btn-row"><button className="btn btn-gr" onClick={()=>setStep(2)}>Continuar → dados do cliente</button></div>
+            </>}
+            {step===2&&<>
+              <div className="card">
+                <div className="ctitle"><span className="dot"/>DADOS DO CLIENTE</div>
+                <div style={{marginBottom:14}}><span className="lbl">Tipo de pessoa</span><div className="toggle-g">{[["juridica","Pessoa jurídica"],["fisica","Pessoa física"]].map(([v,l])=><button key={v} className={`tog-btn${tipo===v?" act":""}`} onClick={()=>setTipo(v)}>{l}</button>)}</div></div>
+                <div className="form-row"><div><span className="lbl">{tipo==="juridica"?"Razão social":"Nome completo"}</span><input value={cli.nome} onChange={e=>setCli({...cli,nome:e.target.value})}/></div><div><span className="lbl">{tipo==="juridica"?"CNPJ":"CPF"}</span><input value={cli.doc} onChange={e=>setCli({...cli,doc:e.target.value})}/></div></div>
+                <div className="form-row w1"><span className="lbl">Endereço completo</span><input value={cli.end} onChange={e=>setCli({...cli,end:e.target.value})}/></div>
+                <div className="form-row"><div><span className="lbl">Nome do representante</span><input value={cli.repNome} onChange={e=>setCli({...cli,repNome:e.target.value})}/></div><div><span className="lbl">CPF do representante</span><input value={cli.repCpf} onChange={e=>setCli({...cli,repCpf:e.target.value})}/></div></div>
+                <div className="form-row"><div><span className="lbl">E-mail</span><input type="email" value={cli.email} onChange={e=>setCli({...cli,email:e.target.value})}/></div><div><span className="lbl">Telefone</span><input value={cli.tel} onChange={e=>setCli({...cli,tel:e.target.value})}/></div></div>
+              </div>
+              <div className="card">
+                <div className="ctitle"><span className="dot bl"/>INFORMAÇÕES DO PEDIDO</div>
+                <div className="form-row"><div><span className="lbl">Vendedor</span><select value={meta.vend} onChange={e=>setMeta({...meta,vend:e.target.value})}><option value="">Selecione...</option>{sellers.map(s=><option key={s.name} value={s.name}>{s.name}</option>)}</select></div><div><span className="lbl">Forma de pagamento</span><input placeholder="Ex: 50% entrada + 50% na entrega" value={meta.pgto} onChange={e=>setMeta({...meta,pgto:e.target.value})}/></div></div>
+                <div className="form-row"><div><span className="lbl">Prazo de entrega</span><input type="date" value={meta.prazo} onChange={e=>setMeta({...meta,prazo:e.target.value})}/></div><div><span className="lbl">Local de entrega</span><input value={meta.local} onChange={e=>setMeta({...meta,local:e.target.value})}/></div></div>
+              </div>
+              <div className="card">
+                <div className="ctitle"><span className="dot ye"/>TESTEMUNHAS</div>
+                <div className="form-row"><div><span className="lbl">Testemunha 1</span><input placeholder="Nome completo" value={meta.t1} onChange={e=>setMeta({...meta,t1:e.target.value})}/></div><div><span className="lbl">Testemunha 2</span><input placeholder="Nome completo" value={meta.t2} onChange={e=>setMeta({...meta,t2:e.target.value})}/></div></div>
+              </div>
+              <div className="btn-row"><button className="btn btn-sec" onClick={()=>setStep(1)}>← Voltar</button><button className="btn btn-gr" onClick={()=>setStep(3)}>Continuar → contrato</button></div>
+            </>}
+            {step===3&&<>
+              <div className="card">
+                <div className="ctitle"><span className="dot"/>RESUMO</div>
+                {items.filter(i=>products.find(p=>p.name===i.product)).map((it,idx)=>{
+                  const p=products.find(x=>x.name===it.product),n=+it.qty||1,d=+it.discPct||0,pf=p.price-p.maxDisc*d
+                  return <div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--bd)",fontSize:13}}>
+                    <span>{it.product} <span style={{color:"var(--t2)"}}>× {n}</span>{d>0&&<span style={{color:"var(--re)",fontSize:11}}> ({(d*100).toFixed(0)}% desc.)</span>}</span>
+                    <strong style={{color:"var(--gr)",whiteSpace:"nowrap",marginLeft:8}}>{fmtR(pf*n)}</strong>
+                  </div>
+                })}
+                {bItems.filter(b=>bonifs.find(x=>x.name===b.item)).map((b,idx)=>(
+                  <div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid var(--bd)",fontSize:12,color:"var(--bl)"}}>
+                    <span>🎁 {b.item} × {b.qty||1}</span><span>Bonificação</span>
+                  </div>
+                ))}
+                <div className="metrics" style={{marginTop:14}}>
+                  <Metric label="Total" value={fmtR(calcs.tp)}/>
+                  <Metric label="Aproveitamento" value={fmtP(calcs.aprov)} color={calcs.col}/>
+                  <Metric label="Comissão" value={fmtR(calcs.comR)} color="blue"/>
+                </div>
+              </div>
+              <div className="card">
+                <div className="ctitle"><span className="dot"/>CONTRATO</div>
+                <div className="esign-box">
+                  <strong style={{color:"var(--t1)"}}>eSignature:</strong><br/>
+                  🧑‍💼 {meta.vend||"(vendedor)"} &nbsp;·&nbsp; 🏢 {cli.email||"(e-mail cliente)"}
+                </div>
+                <div className="btn-row" style={{justifyContent:"flex-start"}}>
+                  <button className="btn btn-gr" onClick={()=>openContract(buildContractData())}>📄 Gerar contrato PDF</button>
+                  <button className="btn btn-bl" onClick={saveOrder}>💾 Salvar no histórico</button>
+                  <button className="btn btn-sec" onClick={()=>setStep(2)}>← Editar</button>
+                </div>
+              </div>
+            </>}
+          </>}
+
+          {tab==="historico"&&<div className="card">
+            <div className="ctitle"><span className="dot bl"/>PEDIDOS SALVOS<span style={{marginLeft:"auto",fontWeight:400,fontSize:11,color:"var(--t3)",textTransform:"none",fontFamily:"'DM Sans',sans-serif"}}>{history.length} pedido{history.length!==1?"s":""}</span></div>
+            <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+              <input placeholder="🔍 Buscar..." value={searchHist} onChange={e=>setSearchHist(e.target.value)} style={{flex:1,minWidth:200}}/>
+              <button className="btn btn-bl btn-sm" onClick={exportCSV}>⬇ Exportar CSV</button>
+            </div>
+            {filteredHist.length===0?<div className="empty">{searchHist?"Nenhum resultado.":"Nenhum pedido salvo ainda."}</div>:filteredHist.map(h=>(
+              <div key={h.id} className="hist-row">
+                <div className="hist-top">
+                  <div style={{flex:1,minWidth:180}}>
+                    <div style={{fontWeight:600,fontSize:13}}>{h.client}</div>
+                    <div style={{fontSize:11,color:"var(--t3)"}}>{h.date} · {h.vend} · {h.doc}</div>
+                    {h.pgto&&<div style={{fontSize:11,color:"var(--t3)"}}>{h.pgto}</div>}
+                  </div>
+                  <div style={{textAlign:"right",flexShrink:0}}>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--gr)",fontSize:14,whiteSpace:"nowrap"}}>{fmtR(h.total)}</div>
+                    <Badge color={h.aprov>=.7?"green":h.aprov>=.4?"yellow":"red"}>{((h.aprov||0)*100).toFixed(0)}% aprov.</Badge>
+                  </div>
+                </div>
+                <div className="hist-actions">
+                  <button className="btn btn-gr btn-sm" onClick={()=>h.contractData&&openContract(h.contractData)}>📄 Gerar contrato</button>
+                  <button className="btn btn-sec btn-sm" onClick={()=>copyRow(h)}>📋 Copiar linha</button>
+                  <button className="btn btn-re btn-sm" onClick={()=>deleteOrder(h.id)}>🗑 Excluir</button>
+                </div>
+              </div>
+            ))}
+          </div>}
+
+          {tab==="config"&&cfgAuth&&<>
+            <div className="tabs" style={{marginBottom:16}}>{[["produtos","Produtos"],["bonifs","Bonificações"],["sellers","Vendedores"],["pin","PIN"]].map(([k,l])=><button key={k} className={`tab${ctab===k?" act":""}`} onClick={()=>setCtab(k)}>{l}</button>)}</div>
+            {ctab==="produtos"&&<div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div className="ctitle" style={{marginBottom:0}}><span className="dot"/>PRODUTOS <span style={{fontSize:11,color:"var(--t3)",fontWeight:400,fontFamily:"'DM Sans',sans-serif"}}>· {products.length} itens</span></div>
+                <button className="btn btn-sec btn-sm" onClick={()=>reset("p")}>Resetar padrão</button>
+              </div>
+              <div className="ovx"><table className="tbl">
+                <thead><tr><th style={{minWidth:200}}>Nome</th><th style={{width:115}}>Preço (R$)</th><th style={{width:115}}>CMV (R$)</th><th style={{width:115}}>Desc. máx (R$)</th><th style={{width:75}}>MC %</th><th style={{width:115}}>MC R$</th><th style={{width:28}}/></tr></thead>
+                <tbody>{products.map((p,idx)=>{
+                  const mc=p.price>0?((COEF_PV*p.price-COEF_CMV*p.cmv)/p.price*100).toFixed(1)+"%":"—"
+                  const mcAbs=p.price>0?fmtR(COEF_PV*p.price-COEF_CMV*p.cmv):"—"
+                  return <tr key={idx}>
+                    <td><input className="inp-sm" value={p.name} onChange={e=>updProd(idx,"name",e.target.value)}/></td>
+                    <td><input type="number" className="inp-num" value={p.price} onChange={e=>updProd(idx,"price",e.target.value)}/></td>
+                    <td><input type="number" className="inp-num" value={p.cmv} onChange={e=>updProd(idx,"cmv",e.target.value)}/></td>
+                    <td><input type="number" className="inp-num" value={p.maxDisc} onChange={e=>updProd(idx,"maxDisc",e.target.value)}/></td>
+                    <td style={{fontSize:12,color:"var(--t2)",textAlign:"right"}}>{mc}</td>
+                    <td style={{fontSize:12,color:"var(--t2)",textAlign:"right"}}>{mcAbs}</td>
+                    <td><button className="btn-ghost" onClick={()=>setProducts(products.filter((_,i)=>i!==idx))}>×</button></td>
+                  </tr>
+                })}</tbody>
+              </table></div>
+              <button className="btn btn-sec btn-sm" style={{marginTop:10}} onClick={()=>setProducts([...products,{name:"",price:0,cmv:0,maxDisc:0}])}>+ Novo produto</button>
+            </div>}
+            {ctab==="bonifs"&&<div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div className="ctitle" style={{marginBottom:0}}><span className="dot bl"/>BONIFICAÇÕES</div>
+                <button className="btn btn-sec btn-sm" onClick={()=>reset("b")}>Resetar padrão</button>
+              </div>
+              <table className="tbl"><thead><tr><th>Nome</th><th style={{width:145}}>Custo (R$)</th><th style={{width:28}}/></tr></thead>
+              <tbody>{bonifs.map((b,idx)=><tr key={idx}><td><input className="inp-sm" value={b.name} onChange={e=>updBon(idx,"name",e.target.value)}/></td><td><input type="number" className="inp-num" value={b.cost} onChange={e=>updBon(idx,"cost",e.target.value)}/></td><td><button className="btn-ghost" onClick={()=>setBonifs(bonifs.filter((_,i)=>i!==idx))}>×</button></td></tr>)}</tbody></table>
+              <button className="btn btn-sec btn-sm" style={{marginTop:10}} onClick={()=>setBonifs([...bonifs,{name:"",cost:0}])}>+ Novo item</button>
+            </div>}
+            {ctab==="sellers"&&<div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div className="ctitle" style={{marginBottom:0}}><span className="dot ye"/>VENDEDORES</div>
+                <button className="btn btn-sec btn-sm" onClick={()=>reset("s")}>Resetar padrão</button>
+              </div>
+              {sellers.map((s,idx)=><div key={idx} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}><input style={{maxWidth:340}} value={s.name} placeholder="Nome do vendedor" onChange={e=>updSel(idx,e.target.value)}/><button className="btn-ghost" onClick={()=>setSellers(sellers.filter((_,i)=>i!==idx))}>×</button></div>)}
+              <button className="btn btn-sec btn-sm" style={{marginTop:4}} onClick={()=>setSellers([...sellers,{name:""}])}>+ Novo vendedor</button>
+            </div>}
+            {ctab==="pin"&&<div className="card">
+              <div className="ctitle"><span className="dot"/>PIN DE ACESSO</div>
+              <div style={{maxWidth:200}}>
+                <span className="lbl">Novo PIN</span>
+                <input type="password" maxLength={6} placeholder="Novo PIN" value={adminPin} onChange={e=>setAdminPin(e.target.value.replace(/\D/g,""))}/>
+              </div>
+              <button className="btn btn-gr btn-sm" style={{marginTop:10}} onClick={()=>savePin(adminPin)}>Salvar PIN</button>
+            </div>}
+            <div style={{fontSize:12,color:"var(--t3)",marginTop:8}}>
+              🔒 Área restrita ·{" "}
+              <button style={{background:"none",border:"none",color:"var(--re)",cursor:"pointer",fontSize:12,fontFamily:"inherit",textDecoration:"underline"}} onClick={()=>{setCfgAuth(false);setTab("pedido")}}>Sair da config</button>
+            </div>
+          </>}
+        </div>
+      </div>
+    </>
+  )
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>)
+</script>
+</body>
+</html>
