@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hectare Uberlândia - Simulador de Vendas</title>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.2/babel.min.js"></script>
+<style>html,body{margin:0;padding:0;background:#0D1117}</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+window.storage={
+  get:function(k){return new Promise(function(r,j){try{var v=localStorage.getItem(k);if(v!==null)r({key:k,value:v});else j(new Error("Not found"))}catch(e){j(e)}});},
+  set:function(k,v){return new Promise(function(r,j){try{localStorage.setItem(k,v);r({key:k,value:v})}catch(e){j(e)}});},
+  delete:function(k){return new Promise(function(r){localStorage.removeItem(k);r({key:k,deleted:true})});},
+  list:function(p){return new Promise(function(r){var ks=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!p||k.startsWith(p))ks.push(k)}r({keys:ks})});}
+};
+</script>
+<script type="text/babel">
+const {useState,useEffect,useMemo,useCallback,useRef}=React;
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
+.happ{--bg:#0D1117;--s1:#161B22;--s2:#1F2937;--bd:#2D3748;--gr:#22C55E;--bl:#3B82F6;--ye:#F59E0B;--re:#EF4444;--t1:#F0F4F8;--t2:#94A3B8;--t3:#64748B;--gr-bg:rgba(34,197,94,.1);--bl-bg:rgba(59,130,246,.1);--ye-bg:rgba(245,158,11,.1);--re-bg:rgba(239,68,68,.1);box-sizing:border-box;background:var(--bg);color:var(--t1);font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.6;padding:16px;min-height:100vh}
+.happ *{box-sizing:border-box;margin:0;padding:0}
+.syne{font-family:'Syne',sans-serif}
+.hdr{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--bd);margin-bottom:20px;flex-wrap:wrap;gap:8px}
+.logo-icon{width:36px;height:36px;background:var(--gr);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.logo-name{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;color:var(--t1)}
+.logo-sub{font-size:11px;color:var(--t3)}
+.tabs{display:flex;gap:4px;background:var(--s1);border-radius:10px;padding:4px;margin-bottom:20px}
+.tab{flex:1;padding:8px 10px;border-radius:7px;border:none;background:transparent;color:var(--t2);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;transition:all .15s;text-align:center}
+.tab.act{background:var(--s2);color:var(--t1);border:1px solid var(--bd)}
+.stepr{display:flex;align-items:center;margin-bottom:24px}
+.step-n{width:27px;height:27px;border-radius:50%;border:2px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;font-family:'Syne',sans-serif;color:var(--t3);flex-shrink:0;transition:all .2s}
+.step-n.act{border-color:var(--gr);color:var(--gr);background:var(--gr-bg)}
+.step-n.done{border-color:var(--gr);background:var(--gr);color:#000}
+.step-lbl{font-size:12px;color:var(--t3);font-weight:500;margin-left:7px}
+.step-lbl.act{color:var(--gr)}
+.step-line{flex:1;height:1px;background:var(--bd);margin:0 8px}
+.step-line.done{background:var(--gr)}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.ctitle{font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.ctitle .dot{width:6px;height:6px;border-radius:50%;background:var(--gr);flex-shrink:0}
+.ctitle .dot.bl{background:var(--bl)}
+.ctitle .dot.ye{background:var(--ye)}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.04em;padding:6px 8px;text-align:left;border-bottom:1px solid var(--bd);white-space:nowrap}
+.tbl td{padding:6px 8px;border-bottom:1px solid var(--bd);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl .total-row td{padding-top:10px;font-weight:600;border-top:1px solid var(--bd);border-bottom:none}
+input,select{background:var(--s2);border:1px solid var(--bd);border-radius:7px;color:var(--t1);font-family:'DM Sans',sans-serif;font-size:13px;padding:6px 9px;width:100%;outline:none;transition:border .15s}
+input:focus,select:focus{border-color:var(--bl)}
+select option{background:var(--s2)}
+input[type=number]{-moz-appearance:textfield}
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+input[type=range]{-webkit-appearance:none;background:var(--bd);height:4px;border-radius:2px;padding:0;cursor:pointer;width:100%}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--gr);cursor:pointer}
+.inp-sm{font-size:12px;padding:4px 7px}
+.inp-num{font-size:12px;padding:4px 7px;text-align:right}
+.disc-badge{font-size:12px;font-weight:700;color:var(--re);min-width:34px;text-align:right}
+.range-wrap{display:flex;align-items:center;gap:7px}
+.lbl{display:block;font-size:12px;color:var(--t2);font-weight:500;margin-bottom:5px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.w1{grid-template-columns:1fr}
+@media(max-width:560px){.form-row{grid-template-columns:1fr}}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.metric{background:var(--s2);border-radius:10px;padding:12px 14px;border:1px solid var(--bd)}
+.metric.green{border-color:rgba(34,197,94,.35);background:var(--gr-bg)}
+.metric.yellow{border-color:rgba(245,158,11,.35);background:var(--ye-bg)}
+.metric.red{border-color:rgba(239,68,68,.35);background:var(--re-bg)}
+.metric.blue{border-color:rgba(59,130,246,.35);background:var(--bl-bg)}
+.m-label{font-size:11px;color:var(--t3);margin-bottom:3px}
+.m-val{font-family:'Syne',sans-serif;font-size:19px;font-weight:700;color:var(--t1)}
+.m-val.green{color:var(--gr)}
+.m-val.yellow{color:var(--ye)}
+.m-val.red{color:var(--re)}
+.m-val.blue{color:var(--bl)}
+.m-sub{font-size:11px;color:var(--t3);margin-top:2px}
+.prog{height:5px;background:var(--bd);border-radius:3px;margin-top:7px;overflow:hidden}
+.prog-fill{height:100%;border-radius:3px;transition:width .3s}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+.badge-green{background:var(--gr-bg);color:var(--gr);border:1px solid rgba(34,197,94,.3)}
+.badge-yellow{background:var(--ye-bg);color:var(--ye);border:1px solid rgba(245,158,11,.3)}
+.badge-red{background:var(--re-bg);color:var(--re);border:1px solid rgba(239,68,68,.3)}
+.badge-blue{background:var(--bl-bg);color:var(--bl);border:1px solid rgba(59,130,246,.3)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:8px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;transition:all .15s}
+.btn-gr{background:var(--gr);color:#000}.btn-gr:hover{background:#16A34A}
+.btn-bl{background:var(--bl);color:#fff}.btn-bl:hover{background:#2563EB}
+.btn-sec{background:var(--s2);color:var(--t1);border:1px solid var(--bd)}.btn-sec:hover{border-color:var(--bl);color:var(--bl)}
+.btn-sm{padding:5px 11px;font-size:12px;border-radius:6px}
+.btn-ghost{background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px;font-family:'DM Sans',sans-serif}.btn-ghost:hover{color:var(--re);background:var(--re-bg)}
+.btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.alert-warn{padding:9px 14px;border-radius:8px;font-size:12px;font-weight:500;display:flex;align-items:center;gap:7px;background:var(--re-bg);color:var(--re);border:1px solid rgba(239,68,68,.3);margin-bottom:10px}
+.toggle-g{display:flex;background:var(--s2);border-radius:7px;padding:3px;gap:2px;max-width:260px}
+.tog-btn{flex:1;padding:5px 10px;border-radius:5px;border:none;background:transparent;color:var(--t2);cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif}.tog-btn.act{background:var(--s1);color:var(--t1);border:1px solid var(--bd)}
+.hist-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--bd)}.hist-row:last-child{border-bottom:none}
+.empty{text-align:center;padding:36px;color:var(--t3);font-size:13px}
+.notify{font-size:12px;color:var(--gr);background:var(--gr-bg);padding:4px 10px;border-radius:999px;border:1px solid rgba(34,197,94,.3)}
+.tip{font-size:12px;color:var(--t3);line-height:1.8}
+.esign-box{background:var(--s2);border-radius:8px;padding:11px 14px;font-size:12px;color:var(--t2);line-height:2;margin-bottom:14px}
+.ovx{overflow-x:auto}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:999;padding:16px}
+.modal{background:var(--s1);border:1px solid var(--bd);border-radius:14px;padding:24px;max-width:400px;width:100%}
+.modal h3{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:16px;color:var(--t1)}
+.pin-input{font-size:20px;text-align:center;letter-spacing:12px;font-weight:700;padding:10px}
+.hist-actions{display:flex;gap:6px;margin-top:6px}
+`
+
+const COEF_PV=0.7507,COEF_CMV=0.8976
+
+const DP=[
+  {name:"AGRAS T100",price:139000,cmv:93000,maxDisc:9000},
+  {name:"DB2160 Intelligent Flight Battery",price:29000,cmv:18000,maxDisc:3000},
+  {name:"C12000 Intelligent Power Supply",price:19000,cmv:12000,maxDisc:2000},
+  {name:"D14000iE Multifuncional Inverter Generator (BR)",price:30400,cmv:20000,maxDisc:2400},
+  {name:"T100 Spreading System (dispersor)",price:19000,cmv:12000,maxDisc:2000},
+  {name:"T100 Mist Nozzle Package",price:12900,cmv:8000,maxDisc:900},
+  {name:"T100 Lift System Kit",price:7900,cmv:4700,maxDisc:900},
+  {name:"AGRAS T70P",price:92000,cmv:60000,maxDisc:7000},
+  {name:"T70 Spreading System (dispersor)",price:11000,cmv:6900,maxDisc:1000},
+  {name:"T70 Mist Nozzle Package",price:9900,cmv:6000,maxDisc:900},
+  {name:"T70 Lift System Kit",price:4900,cmv:3100,maxDisc:400},
+  {name:"DB2160 Air Cooled Heat Sink",price:2900,cmv:1700,maxDisc:400},
+  {name:"AGRAS T25P",price:59000,cmv:40000,maxDisc:5000},
+  {name:"DB800 Intelligent Flight Battery",price:15000,cmv:9000,maxDisc:1000},
+  {name:"C8000 Intelligent Battery Station",price:15000,cmv:9000,maxDisc:1000},
+  {name:"D6000i Multifuncional Inverter Generator (BR)",price:22900,cmv:13800,maxDisc:1900},
+  {name:"T25p Spreading System",price:9900,cmv:6200,maxDisc:900},
+  {name:"T25p Centrifugal Atomizing Sprinkler Package",price:5900,cmv:3600,maxDisc:600},
+  {name:"AGRAS T50",price:89000,cmv:56000,maxDisc:8000},
+  {name:"DB1560 Intelligent Flight Battery",price:20000,cmv:13000,maxDisc:1000},
+  {name:"C10000 Intelligent Battery Station",price:16000,cmv:9000,maxDisc:2000},
+  {name:"DJI12000IEP Multifuncional Inverter Generator (BR)",price:33000,cmv:21000,maxDisc:3000},
+  {name:"T50 Spreading System",price:9000,cmv:6000,maxDisc:500},
+  {name:"T50 Centrifugal Atomizing Sprinkler Package",price:6600,cmv:4000,maxDisc:600},
+  {name:"AGRAS T25",price:55000,cmv:36500,maxDisc:5000},
+  {name:"T25 Spreading System",price:8000,cmv:5000,maxDisc:1000},
+  {name:"T25 Atomized Sprinkler Package",price:5900,cmv:3600,maxDisc:600},
+  {name:"Mavic 3 Multispectral",price:42000,cmv:29000,maxDisc:2100},
+  {name:"Carregador 65w",price:490,cmv:315,maxDisc:49},
+  {name:"Bateria WB37",price:990,cmv:615,maxDisc:129},
+  {name:"HUB",price:890,cmv:570,maxDisc:92},
+  {name:"Misturador 300L",price:9000,cmv:6000,maxDisc:600},
+  {name:"Misturador 600L",price:12000,cmv:8000,maxDisc:800},
+  {name:"Tanque 400L",price:2000,cmv:1200,maxDisc:320},
+  {name:"Relay",price:7650,cmv:5100,maxDisc:510},
+  {name:"Tripe + Base",price:6750,cmv:4500,maxDisc:450},
+]
+const DB=[
+  {name:"CAAR",cost:1000},{name:"Carregador 65w",cost:315},{name:"Bateria WB37",cost:615},
+  {name:"HUB",cost:570},{name:"Misturador 300L",cost:6000},{name:"Misturador 600L",cost:8000},
+  {name:"Tanque 400L",cost:1200},{name:"DB2160 Air Cooled Heat Sink",cost:1700},
+  {name:"1 ano de manutenção grátis (peças não inclusas)",cost:0},
+]
+const DS=[{name:"Pedro"},{name:"Néia"}]
+const DPR=[
+  {name:"Promoção T25P",totalPrice:99000,comPct:3,items:[
+    {product:"AGRAS T25P",qty:1},{product:"DB800 Intelligent Flight Battery",qty:3},{product:"C8000 Intelligent Battery Station",qty:1}
+  ],bonifs:[{item:"1 ano de manutenção grátis (peças não inclusas)",qty:1}]},
+]
+const DK=[
+  {name:"T100",items:[{product:"AGRAS T100",qty:1},{product:"DB2160 Intelligent Flight Battery",qty:3},{product:"C12000 Intelligent Power Supply",qty:1}]},
+  {name:"T70P",items:[{product:"AGRAS T70P",qty:1},{product:"DB2160 Intelligent Flight Battery",qty:3},{product:"C12000 Intelligent Power Supply",qty:1}]},
+  {name:"T25P",items:[{product:"AGRAS T25P",qty:1},{product:"DB800 Intelligent Flight Battery",qty:3},{product:"C8000 Intelligent Battery Station",qty:1}]},
+]
+const DN=[
+  {name:"AGRAS T100",modelo:"T100",ncm:"8806.94.00",anatel:""},
+  {name:"AGRAS T70P",modelo:"T70P",ncm:"8806.94.00",anatel:""},
+  {name:"AGRAS T25P",modelo:"T25P",ncm:"8806.94.00",anatel:""},
+  {name:"AGRAS T50",modelo:"T50",ncm:"8806.94.00",anatel:""},
+  {name:"AGRAS T25",modelo:"T25",ncm:"8806.94.00",anatel:""},
+  {name:"Mavic 3 Multispectral",modelo:"Mavic 3M",ncm:"8806.22.00",anatel:""},
+  {name:"DB2160 Intelligent Flight Battery",modelo:"Bateria",ncm:"8507.60.00",anatel:""},
+  {name:"DB1560 Intelligent Flight Battery",modelo:"Bateria",ncm:"8507.60.00",anatel:""},
+  {name:"DB800 Intelligent Flight Battery",modelo:"Bateria",ncm:"8507.60.00",anatel:""},
+  {name:"Bateria WB37",modelo:"Bateria",ncm:"8507.60.00",anatel:""},
+  {name:"C12000 Intelligent Power Supply",modelo:"Carregador",ncm:"8504.40.90",anatel:""},
+  {name:"C10000 Intelligent Battery Station",modelo:"Carregador",ncm:"8504.40.90",anatel:""},
+  {name:"C8000 Intelligent Battery Station",modelo:"Carregador",ncm:"8504.40.10",anatel:""},
+  {name:"Carregador 65w",modelo:"Carregador",ncm:"8504.40.10",anatel:""},
+  {name:"HUB",modelo:"Carregador",ncm:"8504.40.10",anatel:""},
+  {name:"Misturador 300L",modelo:"Misturador",ncm:"8436.80.00",anatel:""},
+  {name:"Misturador 600L",modelo:"Misturador",ncm:"8436.80.00",anatel:""},
+  {name:"D14000iE Multifuncional Inverter Generator (BR)",modelo:"Gerador",ncm:"8502.20.11",anatel:""},
+  {name:"D6000i Multifuncional Inverter Generator (BR)",modelo:"Gerador",ncm:"8502.20.11",anatel:""},
+  {name:"DJI12000IEP Multifuncional Inverter Generator (BR)",modelo:"Gerador",ncm:"8502.20.11",anatel:""},
+  {name:"T100 Spreading System (dispersor)",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"T100 Mist Nozzle Package",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"T100 Lift System Kit",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"T70 Spreading System (dispersor)",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"T70 Mist Nozzle Package",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"T70 Lift System Kit",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"T25p Spreading System",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"T25p Centrifugal Atomizing Sprinkler Package",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"T50 Spreading System",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"T50 Centrifugal Atomizing Sprinkler Package",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"T25 Spreading System",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"T25 Atomized Sprinkler Package",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"Tanque 400L",modelo:"Acessório",ncm:"8436.80.00",anatel:""},
+  {name:"Relay",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"Tripe + Base",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"CAAR",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+  {name:"DB2160 Air Cooled Heat Sink",modelo:"Acessório",ncm:"8806.94.00",anatel:""},
+]
+const DEFAULT_PIN="1234"
+
+const fmtN=n=>(isNaN(n)||n===0)?"—":n.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})
+const fmtR=n=>(isNaN(n)||n===0)?"—":"R$ "+fmtN(n)
+const fmtP=n=>isNaN(n)?"—":(n*100).toFixed(1)+"%"
+
+function Badge({color,children}){return <span className={`badge badge-${color}`}>{children}</span>}
+
+function Metric({label,value,sub,color,progress}){
+  const vc=color?` ${color}`:""
+  const bars={green:"var(--gr)",yellow:"var(--ye)",red:"var(--re)",blue:"var(--bl)"}
+  return(
+    <div className={`metric${color?" "+color:""}`}>
+      <div className="m-label">{label}</div>
+      <div className={`m-val${vc}`}>{value}</div>
+      {sub&&<div className="m-sub">{sub}</div>}
+      {progress!==undefined&&<div className="prog"><div className="prog-fill" style={{width:(progress*100)+"%",background:bars[color]||"var(--gr)"}}/></div>}
+    </div>
+  )
+}
+
+function PinModal({onSuccess,onClose}){
+  const [pin,setPin]=useState("")
+  const [err,setErr]=useState(false)
+  const [storedPin,setStoredPin]=useState(DEFAULT_PIN)
+  useEffect(()=>{window.storage.get("hect_pin").then(r=>{if(r?.value)setStoredPin(r.value)}).catch(()=>{})},[])
+  const check=()=>{if(pin===storedPin){onSuccess()}else{setErr(true);setPin("");setTimeout(()=>setErr(false),1500)}}
+  return(
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h3>🔒 Área restrita</h3>
+        <p style={{fontSize:13,color:"var(--t2)",marginBottom:16}}>Digite o PIN de administrador para acessar as configurações.</p>
+        <input className="pin-input" type="password" maxLength={6} placeholder="••••" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,""))} onKeyDown={e=>e.key==="Enter"&&check()} autoFocus/>
+        {err&&<p style={{color:"var(--re)",fontSize:12,marginTop:8,textAlign:"center"}}>PIN incorreto. Tente novamente.</p>}
+        <div className="btn-row" style={{marginTop:16}}>
+          <button className="btn btn-sec btn-sm" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-gr btn-sm" onClick={check}>Entrar</button>
+        </div>
+        <p style={{fontSize:11,color:"var(--t3)",marginTop:12,textAlign:"center"}}>PIN padrão: 1234</p>
+      </div>
+    </div>
+  )
+}
+
+function App(){
+  const [tab,setTab]=useState("pedido")
+  const [step,setStep]=useState(1)
+  const [ctab,setCtab]=useState("produtos")
+  const [loaded,setLoaded]=useState(false)
+  const [notify,setNotify]=useState("")
+  const [showPin,setShowPin]=useState(false)
+  const [cfgAuth,setCfgAuth]=useState(false)
+  const [searchHist,setSearchHist]=useState("")
+
+  const [products,setProducts]=useState(DP)
+  const [bonifs,setBonifs]=useState(DB)
+  const [sellers,setSellers]=useState(DS)
+  const [history,setHistory]=useState([])
+  const [adminPin,setAdminPin]=useState(DEFAULT_PIN)
+  const [promos,setPromos]=useState(DPR)
+  const [activePromo,setActivePromo]=useState("")
+  const [promoFactor,setPromoFactor]=useState(1)
+  const [kits,setKits]=useState(DK)
+  const [roundTarget,setRoundTarget]=useState("")
+  const [ncmData,setNcmData]=useState(DN)
+
+  const nextId=useRef(100)
+  const newId=()=>++nextId.current
+  const [items,setItems]=useState([{id:100,product:"",qty:1,discPct:0}])
+  const [bItems,setBItems]=useState([{id:101,item:"",qty:1}])
+  const [tipo,setTipo]=useState("juridica")
+  const [cli,setCli]=useState({nome:"",doc:"",ie:"",end:"",repNome:"",repCpf:"",email:"",tel:""})
+  const [meta,setMeta]=useState({vend:"",pgto:"",prazo:"",local:"",t1:"",t1email:"",t2:"",t2email:""})
+
+  useEffect(()=>{
+    async function load(){
+      try{
+        const rs=await Promise.allSettled(["hect_p","hect_b","hect_s","hect_h","hect_pin","hect_promos","hect_kits","hect_ncm"].map(k=>window.storage.get(k)))
+        if(rs[0].value?.value)setProducts(JSON.parse(rs[0].value.value))
+        if(rs[1].value?.value)setBonifs(JSON.parse(rs[1].value.value))
+        if(rs[2].value?.value)setSellers(JSON.parse(rs[2].value.value))
+        if(rs[3].value?.value)setHistory(JSON.parse(rs[3].value.value))
+        if(rs[4].value?.value)setAdminPin(rs[4].value.value)
+        if(rs[5].value?.value)setPromos(JSON.parse(rs[5].value.value))
+        if(rs[6].value?.value)setKits(JSON.parse(rs[6].value.value))
+        if(rs[7].value?.value)setNcmData(JSON.parse(rs[7].value.value))
+      }catch(e){}
+      setLoaded(true)
+    }
+    load()
+  },[])
+
+  useEffect(()=>{if(loaded)window.storage.set("hect_p",JSON.stringify(products)).catch(()=>{})},[products,loaded])
+  useEffect(()=>{if(loaded)window.storage.set("hect_b",JSON.stringify(bonifs)).catch(()=>{})},[bonifs,loaded])
+  useEffect(()=>{if(loaded)window.storage.set("hect_s",JSON.stringify(sellers)).catch(()=>{})},[sellers,loaded])
+  useEffect(()=>{if(loaded)window.storage.set("hect_h",JSON.stringify(history)).catch(()=>{})},[history,loaded])
+  useEffect(()=>{if(loaded)window.storage.set("hect_promos",JSON.stringify(promos)).catch(()=>{})},[promos,loaded])
+  useEffect(()=>{if(loaded)window.storage.set("hect_kits",JSON.stringify(kits)).catch(()=>{})},[kits,loaded])
+  useEffect(()=>{if(loaded)window.storage.set("hect_ncm",JSON.stringify(ncmData)).catch(()=>{})},[ncmData,loaded])
+
+  function msg(t){setNotify(t);setTimeout(()=>setNotify(""),2500)}
+
+  const calcs=useMemo(()=>{
+    const pm={};products.forEach(p=>{pm[p.name]=p})
+    const bm={};bonifs.forEach(b=>{bm[b.name]=b})
+    let tp=0,tsd=0,tcmv=0,tdm=0,tpPromo=0,tpNormal=0
+    items.forEach(({product,qty,discPct,isPromo:ip})=>{
+      const p=pm[product];if(!p)return
+      const n=+qty||0,d=+discPct||0
+      if(ip){
+        const eprice=p.price*promoFactor
+        tpPromo+=eprice*n
+      }else{
+        tpNormal+=(p.price-p.maxDisc*d)*n
+      }
+      tsd+=p.price*n;tcmv+=p.cmv*n;tdm+=(p.price-p.maxDisc)*n
+    })
+    tp=tpPromo+tpNormal
+    const ap=activePromo&&promos.find(p=>p.name===activePromo)
+    let tb=0;bItems.forEach(({item,qty})=>{const b=bm[item];if(b)tb+=b.cost*(+qty||0)})
+    const cc=tcmv+tb,bmax=tp*.05
+    const mcMax=tsd>0?COEF_PV*tsd-COEF_CMV*tcmv:0
+    const mcReal=tp>0?COEF_PV*tp-COEF_CMV*cc:0
+    const mcMin=tdm>0?COEF_PV*tdm-COEF_CMV*(tcmv+.05*tdm):0
+    const rng=mcMax-mcMin
+    const aprov=rng>0?Math.max(0,Math.min(1,(mcReal-mcMin)/rng)):0
+    const calcComPct=.01+.02*aprov
+    const hasCustomCom=ap&&ap.comPct!=null&&ap.comPct>0
+    const comPct=hasCustomCom?ap.comPct/100:calcComPct
+    const comR=comPct*tp
+    const col=aprov>=.7?"green":aprov>=.4?"yellow":"red"
+    const status=aprov>=.7?"ÓTIMO":aprov>=.4?"BOM":"BAIXO"
+    const alcada=aprov>=.7?"Vendedor":aprov>=.4?"Gerente":"Diretor"
+    return{tp,tsd,tcmv,tdm,tb,cc,bmax,mcMax,mcReal,mcMin,aprov,comPct,comR,col,status,alcada,isPromo:!!ap,tpPromo,tpNormal,hasCustomCom}
+  },[items,bItems,products,bonifs,activePromo,promos,promoFactor])
+
+  function updItem(i,k,v){const n=[...items];n[i]={...n[i],[k]:v};if(k==="product")n[i].discPct=0;setItems(n)}
+  function updBonif(i,k,v){const n=[...bItems];n[i]={...n[i],[k]:v};setBItems(n)}
+  function updProd(i,k,v){const n=[...products];n[i]={...n[i],[k]:k==="name"?v:(+v||0)};setProducts(n)}
+  function updBon(i,k,v){const n=[...bonifs];n[i]={...n[i],[k]:k==="name"?v:(+v||0)};setBonifs(n)}
+  function updSel(i,v){const n=[...sellers];n[i]={name:v};setSellers(n)}
+  function reset(w){if(w==="p"){setProducts(DP);msg("✓ Produtos resetados")}if(w==="b"){setBonifs(DB);msg("✓ Bonificações resetadas")}if(w==="s"){setSellers(DS);msg("✓ Vendedores resetados")}}
+
+  function applyRoundTotal(){
+    const target=+roundTarget
+    if(!target||target<=0){msg("⚠ Informe um valor válido");return}
+    const pm={};products.forEach(p=>{pm[p.name]=p})
+    const normalItems=items.map((it,i)=>({...it,idx:i})).filter(it=>!it.isPromo&&pm[it.product])
+    if(normalItems.length===0){msg("⚠ Sem itens ajustáveis");return}
+    let promoTotal=0
+    items.forEach(it=>{if(it.isPromo){const p=pm[it.product];if(p)promoTotal+=p.price*promoFactor*(+it.qty||0)}})
+    const desiredNormal=target-promoTotal
+    let listTotal=0,maxDiscTotal=0
+    normalItems.forEach(it=>{const p=pm[it.product],n=+it.qty||0;listTotal+=p.price*n;maxDiscTotal+=p.maxDisc*n})
+    if(desiredNormal>listTotal){msg("⚠ Valor maior que o preço tabela");return}
+    if(maxDiscTotal===0){msg("⚠ Itens sem margem de desconto");return}
+    const factor=Math.max(0,Math.min(1,(listTotal-desiredNormal)/maxDiscTotal))
+    const newItems=[...items]
+    normalItems.forEach(it=>{newItems[it.idx]={...newItems[it.idx],discPct:factor}})
+    setItems(newItems)
+    setRoundTarget("")
+    msg("✓ Total ajustado para "+fmtR(target))
+  }
+
+  function applyPromo(promoName){
+    if(!promoName){setActivePromo("");setPromoFactor(1);return}
+    const promo=promos.find(p=>p.name===promoName)
+    if(!promo)return
+    const pm={};products.forEach(p=>{pm[p.name]=p})
+    const newItems=promo.items.filter(i=>pm[i.product]).map(i=>({id:newId(),product:i.product,qty:i.qty||1,discPct:0,isPromo:true}))
+    if(newItems.length===0){msg("⚠ Nenhum produto válido nesta promo");return}
+    let listPrice=0
+    newItems.forEach(i=>{const p=pm[i.product];if(p)listPrice+=p.price*(+i.qty||1)})
+    const factor=listPrice>0?promo.totalPrice/listPrice:1
+    setPromoFactor(factor)
+    const newBonifs=(promo.bonifs||[]).map(b=>({id:newId(),item:b.item,qty:b.qty||1}))
+    setItems(newItems.length>0?newItems:[{id:newId(),product:"",qty:1,discPct:0}])
+    setBItems(newBonifs.length>0?newBonifs:[{id:newId(),item:"",qty:1}])
+    setActivePromo(promoName)
+    msg("✓ Promo \""+promo.name+"\" aplicada")
+  }
+
+  function applyKit(kitName){
+    const kit=kits.find(k=>k.name===kitName)
+    if(!kit)return
+    const pm={};products.forEach(p=>{pm[p.name]=p})
+    const newItems=kit.items.filter(i=>pm[i.product]).map(i=>({id:newId(),product:i.product,qty:i.qty||1,discPct:0}))
+    if(newItems.length===0){msg("⚠ Nenhum produto válido neste kit");return}
+    setItems(prev=>{
+      const clean=prev.filter(i=>i.product!=="")
+      return[...clean,...newItems]
+    })
+    msg("✓ Kit \""+kit.name+"\" adicionado")
+  }
+
+  function saveOrder(source){
+    const pm={};products.forEach(p=>{pm[p.name]=p})
+    const bm={};bonifs.forEach(b=>{bm[b.name]=b})
+    const prodList=items.filter(i=>pm[i.product]).map(i=>{
+      const p=pm[i.product],n=+i.qty||1,d=+i.discPct||0
+      return `${i.product} x${n} (${(d*100).toFixed(0)}% desc)`
+    }).join(" | ")
+    const bonList=bItems.filter(b=>bm[b.item]).map(b=>`${b.item} x${b.qty||1}`).join(" | ")
+    const o={id:Date.now(),date:new Date().toLocaleDateString("pt-BR"),client:cli.nome||"(sem nome)",doc:cli.doc||"—",total:calcs.tp,vend:meta.vend||"—",aprov:calcs.aprov,com:calcs.comR,comPct:calcs.comPct,status:calcs.status,pgto:meta.pgto||"—",prazo:meta.prazo||"—",local:meta.local||"—",email:cli.email||"—",tel:cli.tel||"—",prodList,bonList,tipo,
+      source:source||"manual",
+      _items:JSON.parse(JSON.stringify(items.filter(i=>pm[i.product]))),
+      _bItems:JSON.parse(JSON.stringify(bItems.filter(b=>bm[b.item]))),
+      _cli:{...cli},_meta:{...meta},_tipo:tipo,
+      _activePromo:activePromo,_promoFactor:promoFactor
+    }
+    const next=[o,...history].slice(0,200);setHistory(next);msg("✓ Pedido salvo no histórico")
+    return o
+  }
+
+  function restoreFromHistory(h){
+    if(!h._items){msg("⚠ Pedido antigo sem dados completos");return}
+    setItems(h._items.map(i=>({...i,id:newId()})))
+    setBItems((h._bItems||[]).map(b=>({...b,id:newId()})))
+    setCli(h._cli||{nome:"",doc:"",ie:"",end:"",repNome:"",repCpf:"",email:"",tel:""})
+    setMeta(h._meta||{vend:"",pgto:"",prazo:"",local:"",t1:"",t1email:"",t2:"",t2email:""})
+    setTipo(h._tipo||"juridica")
+    setActivePromo(h._activePromo||"")
+    setPromoFactor(h._promoFactor||1)
+    setStep(3)
+    setTab("pedido")
+    msg("✓ Pedido restaurado — gere o contrato ou orçamento")
+  }
+
+  const exportCSV=useCallback(()=>{
+    if(history.length===0){msg("Nenhum pedido para exportar");return}
+    const hdr=["Data","Cliente","Doc","Tipo","Vendedor","Produtos","Bonificações","Total (R$)","Aproveitamento (%)","Comissão (R$)","Comissão (%)","Status","Pagamento","Prazo","Local","Email","Telefone"]
+    const rows=history.map(h=>[
+      h.date,h.client,h.doc,h.tipo||"—",h.vend,`"${h.prodList||""}"`,`"${h.bonList||""}"`,
+      h.total?.toFixed(2)||"0",((h.aprov||0)*100).toFixed(1),(h.com||0).toFixed(2),
+      ((h.comPct||0)*100).toFixed(2),h.status||"—",h.pgto||"—",h.prazo||"—",h.local||"—",h.email||"—",h.tel||"—"
+    ])
+    const csv="\uFEFF"+[hdr.join(";"),...rows.map(r=>r.join(";"))].join("\n")
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8;"})
+    const url=URL.createObjectURL(blob)
+    const a=document.createElement("a");a.href=url;a.download=`hectare_pedidos_${new Date().toISOString().slice(0,10)}.csv`;a.click()
+    URL.revokeObjectURL(url);msg("✓ CSV exportado")
+  },[history])
+
+  function copyRow(h){
+    const row=[h.date,h.client,h.doc,h.tipo||"—",h.vend,h.prodList||"",h.bonList||"",h.total?.toFixed(2)||"0",((h.aprov||0)*100).toFixed(1)+"%",(h.com||0).toFixed(2),h.status||"—",h.pgto||"—"].join("\t")
+    try{
+      const ta=document.createElement("textarea");ta.value=row;ta.style.cssText="position:fixed;left:-9999px";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);msg("✓ Linha copiada")
+    }catch(e){msg("Erro ao copiar")}
+  }
+
+  function handleConfigTab(){
+    if(cfgAuth){setTab("config")}else{setShowPin(true)}
+  }
+
+  function savePin(newPin){
+    setAdminPin(newPin)
+    window.storage.set("hect_pin",newPin).catch(()=>{})
+    msg("✓ PIN atualizado")
+  }
+
+  function printContract(){
+    saveOrder("contrato")
+    const today=new Date()
+    const months=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"]
+    const dateExt=`${today.getDate()} de ${months[today.getMonth()]} de ${today.getFullYear()}`
+    const docTipo=tipo==="juridica"?"CNPJ":"CPF"
+    const tipoPessoa=tipo==="juridica"?"pessoa jurídica de direito privado":"pessoa física"
+    const pm={};products.forEach(p=>{pm[p.name]=p})
+    const bm={};bonifs.forEach(b=>{bm[b.name]=b})
+    const validItems=items.filter(i=>pm[i.product])
+    const kitNome=validItems.length>0?validItems.map(i=>`${i.product}${+i.qty>1?" (×"+i.qty+")":""}`).join(", "):"(itens conforme abaixo)"
+    const kitRows=validItems.map(i=>{
+      const p=pm[i.product],n=+i.qty||1,d=+i.discPct||0,pf=p.price-p.maxDisc*d
+      return `<tr><td>${i.product}</td><td style="text-align:center">${n}</td><td style="text-align:right">R$ ${fmtN(pf)}</td><td style="text-align:right;font-weight:bold">R$ ${fmtN(pf*n)}</td></tr>`
+    }).join("")
+    const validBonifs=bItems.filter(b=>bm[b.item])
+    const bRows=validBonifs.map(b=>`<tr><td>${b.item}</td><td style="text-align:center">${b.qty||1}</td></tr>`).join("")
+    const css=`@page{size:A4;margin:2.5cm 2cm 2.5cm 2cm;@top-center{content:"Contrato de Compra e Venda";font-family:Arial,sans-serif;font-size:9pt;font-style:italic;color:#444}@bottom-center{content:"Página " counter(page) " de " counter(pages);font-family:Arial,sans-serif;font-size:9pt;color:#444}}
+body{font-family:Arial,sans-serif;font-size:11pt;color:#111;line-height:1.7}
+h1{text-align:center;font-size:13pt;margin:0 0 2px;letter-spacing:.04em}
+h2{text-align:center;font-size:10.5pt;font-weight:normal;color:#444;margin:0 0 22px}
+.page-hdr{text-align:center;font-style:italic;font-size:9.5pt;color:#444;margin-bottom:18px}
+.sec{font-size:11pt;font-weight:bold;margin:20px 0 8px;text-transform:uppercase;border-bottom:1.5px solid #111;padding-bottom:3px}
+p{margin:5px 0;text-align:justify}
+ul{margin:6px 0 6px 20px}
+li{margin:3px 0;text-align:justify}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:10.5pt}
+th{background:#f0f0f0;font-weight:bold;padding:6px 10px;border:1px solid #ccc;text-align:left}
+td{padding:5px 10px;border:1px solid #ccc}
+.sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;margin-top:16px}
+.sig-line{border-top:1px solid #000;margin:50px 0 5px}
+.sig-name{text-align:center;font-size:10.5pt}
+.pb{position:fixed;top:16px;right:16px;background:#22C55E;color:#000;border:none;padding:10px 22px;font-weight:bold;cursor:pointer;border-radius:6px;font-size:11pt;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+@media print{.pb{display:none}}
+@media screen{.page-footer{text-align:center;font-size:9pt;color:#444;margin-top:40px;padding-top:10px;border-top:1px solid #ddd}}`
+    const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Contrato – ${cli.nome||"Cliente"}</title><style>${css}</style></head><body>
+<button class="pb" onclick="window.print()">⬇ Salvar PDF</button>
+<div class="page-hdr">Contrato de Compra e Venda</div>
+<h1>CONTRATO DE COMPRA E VENDA HECTARE</h1>
+
+<p class="sec">QUALIFICAÇÃO DAS PARTES</p>
+<p><strong>VENDEDORA: HECTARE UBERLANDIA DRONE LTDA</strong>, nome fantasia <strong>HECTARE UBERLANDIA</strong>, pessoa jurídica de direito privado, inscrita no CNPJ sob o nº <strong>64.985.431/0001-37</strong>, com Inscrição Estadual nº <strong>54330720019</strong>, com sede na <strong>Av. Floriano Peixoto, nº 4431, Bairro Custódio Pereira, Uberlândia/MG, CEP 38.405-184</strong>, neste ato representada por <strong>DAVI TEIXEIRA NERI</strong>, <strong>brasileiro</strong>, <strong>solteiro</strong>, portador do RG nº <strong>3797296 SPTC/ES</strong> e CPF nº <strong>145.015.787-42</strong>, doravante denominada simplesmente <strong>VENDEDORA</strong>.</p>
+<p><strong>COMPRADOR(A): ${cli.nome||"___________________"}</strong>, <strong>${tipoPessoa}</strong>, inscrito(a) no <strong>${docTipo}</strong> sob o nº <strong>${cli.doc||"___________________"}</strong>, com endereço em <strong>${cli.end||"___________________"}</strong>, neste ato representado(a) por <strong>${cli.repNome||"___________________"}</strong>, portador(a) do CPF nº <strong>${cli.repCpf||"___________________"}</strong>, doravante denominado(a) simplesmente <strong>COMPRADOR(A)</strong>.</p>
+<p>As partes acima qualificadas, doravante denominadas em conjunto como "PARTES", têm entre si justo e contratado o presente Contrato de Compra e Venda de Equipamentos ("Contrato"), que se regerá pelas cláusulas e condições a seguir estabelecidas.</p>
+
+<p class="sec">CLÁUSULA 1ª – DO OBJETO</p>
+<p>1.1. O presente Contrato tem por objeto a compra e venda, pela VENDEDORA ao(à) COMPRADOR(A), de aeronave(s) não tripulada(s) da marca DJI ("Equipamento(s)") e respectivos componentes, periféricos e acessórios, conforme composição descrita nas Cláusulas 1.2 e 1.3 abaixo.</p>
+<p><strong>1.2. Kit principal.</strong> Compõe a venda o seguinte kit: <strong>${kitNome}</strong>, contendo os itens listados a seguir:</p>
+<table><thead><tr><th>Produto</th><th style="width:50px">Qtd</th><th style="width:120px">Preço Un.</th><th style="width:130px">Subtotal</th></tr></thead>
+<tbody>${kitRows}</tbody>
+<tfoot><tr><td colspan="3" style="text-align:right;font-weight:bold;background:#f0f0f0">TOTAL</td><td style="text-align:right;font-weight:bold;background:#f0f0f0">R$ ${fmtN(calcs.tp)}</td></tr></tfoot></table>
+${validBonifs.length>0?`<p><strong>1.3. Itens bonificados.</strong> Acompanham ainda a venda os seguintes itens avulsos, em adição ao kit principal:</p>
+<table><thead><tr><th>Item</th><th style="width:50px">Qtd</th></tr></thead><tbody>${bRows}</tbody></table>`:`<p><strong>1.3. Itens bonificados.</strong> Não há itens bonificados nesta venda.</p>`}
+<p>1.4. Os números de série individuais de cada equipamento, componente e acessório integrante da venda constarão da respectiva Nota Fiscal de venda, a qual passa a integrar este Contrato para todos os fins, em especial para fins de identificação dos bens e exercício dos direitos decorrentes da garantia.</p>
+<p>1.5. O documento fiscal de referência será a Nota Fiscal de venda emitida pela VENDEDORA ao(à) COMPRADOR(A), a qual integra este Contrato para todos os fins.</p>
+<p>1.6. Os Equipamentos são novos, originais da marca DJI, importados e comercializados por meio do distribuidor oficial da marca no Brasil, acompanhados de Nota Fiscal e Número de Série de identificação nacional (BR), com homologação ANATEL conforme certificação constante na embalagem de cada equipamento, em pleno funcionamento, livres de quaisquer ônus, gravames ou pendências.</p>
+
+<p class="sec">CLÁUSULA 2ª – DO PREÇO E DAS CONDIÇÕES DE PAGAMENTO</p>
+<p>2.1. Pela aquisição do(s) Equipamento(s) descrito(s) na Cláusula 1.2, o(a) COMPRADOR(A) pagará à VENDEDORA o valor total de R$ <strong>${fmtN(calcs.tp)}</strong>.</p>
+<p>2.2. O pagamento será efetuado da seguinte forma: <strong>${meta.pgto||"___________________"}</strong>.</p>
+<p>2.3. Em caso de pagamento parcelado, as parcelas serão liquidadas conforme cronograma acordado entre as Partes, que poderá constar de Anexo a este Contrato.</p>
+<p>2.4. O inadimplemento por prazo superior a 15 (quinze) dias autoriza a VENDEDORA a, alternativa e cumulativamente: (i) suspender a entrega do(s) Equipamento(s); (ii) rescindir o Contrato de pleno direito, retomando o(s) Equipamento(s); e (iii) cobrar judicial ou extrajudicialmente os valores devidos.</p>
+<p>2.5. Sem prejuízo do disposto na Cláusula 2.4, o atraso no pagamento de qualquer parcela ou valor devido em razão deste Contrato sujeitará o(a) COMPRADOR(A), independentemente de notificação, a: (i) multa moratória de 2% (dois por cento) sobre o valor em atraso; (ii) juros de mora de 1% (um por cento) ao mês, calculados pro rata die desde a data do vencimento até a data do efetivo pagamento; e (iii) correção monetária pela variação do IPCA/IBGE, ou por outro índice oficial que vier a substituí-lo, tudo sem prejuízo da indenização suplementar por perdas e danos.</p>
+
+<p class="sec">CLÁUSULA 3ª – DA ENTREGA E ACEITAÇÃO</p>
+<p>3.1. A entrega do(s) Equipamento(s) será realizada assim que houver disponibilidade de estoque, em data a ser confirmada pela VENDEDORA ao(à) COMPRADOR(A) por escrito.</p>
+<p>3.2. As despesas de frete, seguro de transporte e demais encargos relacionados à entrega correrão por conta da VENDEDORA, salvo acordo expresso em contrário entre as Partes.</p>
+<p>3.3. No ato do recebimento, o(a) COMPRADOR(A) deverá conferir o(s) Equipamento(s) e seus acessórios, verificando a integridade da embalagem, lacres, número de série e itens inclusos, mediante assinatura do termo de entrega e aceite.</p>
+<p>3.4. Eventuais avarias visíveis ou divergências quantitativas deverão ser registradas no ato da entrega e comunicadas formalmente à VENDEDORA, por escrito, em até 48 (quarenta e oito) horas, sob pena de presunção de aceitação tácita.</p>
+<p>3.5. A propriedade do(s) Equipamento(s) será transferida ao(à) COMPRADOR(A) somente após a quitação integral do preço, salvo disposição expressa em contrário.</p>
+
+<p class="sec">CLÁUSULA 4ª – DA GARANTIA DO FABRICANTE DJI</p>
+<p><strong>4.1.</strong> Os Equipamentos objeto deste Contrato são acompanhados de garantia contra defeitos de fabricação, nos seguintes termos:</p>
+<p><strong>4.1.1.</strong> A aeronave de pulverização agrícola terá garantia específica conforme a composição do modelo adquirido, nos prazos e condições estabelecidos na Política de Pós-Venda do fabricante DJI, vigente na data da venda, disponível em <a href="http://www.dji.com/service/policy">www.dji.com/service/policy</a>.</p>
+<p><strong>4.1.2.</strong> As baterias externas terão garantia de 12 (doze) meses ou 1.500 (mil e quinhentos) ciclos de carga, o que ocorrer primeiro, contados da data de ativação do equipamento.</p>
+<p><strong>4.1.3.</strong> O misturador (caso incluído no kit) terá garantia de 30 (trinta) dias, contados da data de entrega.</p>
+<p><strong>4.2.</strong> A garantia está condicionada ao cumprimento, pelo(a) COMPRADOR(A), das disposições constantes da Política de Pós-Venda do fabricante e do Termo de Compromisso e Responsabilidade assinado no ato da entrega técnica.</p>
+<p><strong>4.3.</strong> A garantia compreende a assistência técnica e, quando necessário, a substituição de peças dos equipamentos descritos na Cláusula 1ª, limitando-se exclusivamente aos defeitos de fabricação identificados e atestados por técnico autorizado pelo fabricante.</p>
+<p><strong>4.4.</strong> Constatado defeito de fabricação por técnico autorizado, a VENDEDORA providenciará a substituição ou reparo do equipamento no prazo de até 30 (trinta) dias, nos termos do art. 18, §1º, do Código de Defesa do Consumidor.</p>
+<p><strong>4.5.</strong> Caso a análise técnica conclua que o defeito não é de fabricação, mas sim decorrente de uso inadequado, as despesas de diagnóstico, reparo e logística serão de inteira responsabilidade do(a) COMPRADOR(A).</p>
+<p><strong>4.6.</strong> Verificado eventual defeito, o(a) COMPRADOR(A) deverá comunicar-se imediatamente com o serviço autorizado indicado pelo fabricante, único habilitado a examinar e sanar defeitos durante o prazo de garantia. A VENDEDORA prestará suporte de primeiro nível e intermediará, quando necessário, o contato com a assistência autorizada.</p>
+<p><strong>4.7.</strong> A instalação e a configuração dos equipamentos devem seguir rigorosamente o Manual do Produto e/ou o Guia de Instalação do fabricante. Caso seja necessária instalação ou configuração por técnico capacitado, os respectivos custos correrão por conta do(a) COMPRADOR(A), salvo acordo expresso em contrário.</p>
+<p><strong>4.8. Hipóteses de perda da garantia.</strong> A garantia perderá sua validade na ocorrência de qualquer das seguintes hipóteses:</p>
+<p style="margin-left:20px">(i) defeito causado pelo(a) COMPRADOR(A) ou por terceiros não autorizados pelo fabricante;</p>
+<p style="margin-left:20px">(ii) danos oriundos de acidentes, sinistros, agentes da natureza (raios, inundações, desabamentos e afins), umidade, sobretensão ou flutuações na rede elétrica;</p>
+<p style="margin-left:20px">(iii) instalação ou uso em desacordo com o manual do fabricante ou com a legislação vigente;</p>
+<p style="margin-left:20px">(iv) desgaste natural de partes, peças e componentes consumíveis;</p>
+<p style="margin-left:20px">(v) influência de natureza química, eletromagnética, elétrica ou biológica (insetos e afins);</p>
+<p style="margin-left:20px">(vi) adulteração, remoção ou rasura do número de série ou de etiquetas de identificação do equipamento;</p>
+<p style="margin-left:20px">(vii) violação, abertura, desmontagem, modificação ou tentativa de reparo por pessoa ou assistência não autorizada pelo fabricante.</p>
+<p><strong>4.9.</strong> A VENDEDORA não se responsabiliza por danos causados ao equipamento por negligência, imprudência ou imperícia do(a) COMPRADOR(A), nem por problemas decorrentes do uso em desconformidade com as normas técnicas constantes dos manuais que acompanham o produto.</p>
+<p><strong>Parágrafo único.</strong> O(a) COMPRADOR(A) declara que, no ato da entrega técnica, teve a oportunidade de vistoriar os equipamentos objeto deste Contrato, confirmando que se encontram em perfeitas condições de funcionamento e aptos a atender às finalidades para as quais estão sendo adquiridos.</p>
+<p><strong>4.10.</strong> As disposições deste Contrato que invocam o Código de Defesa do Consumidor (Lei nº 8.078/1990), em especial a Cláusula 4.4, somente serão aplicáveis caso o(a) COMPRADOR(A) efetivamente se enquadre na condição jurídica de consumidor(a) final, nos termos do art. 2º do referido diploma. Reconhecem as Partes que, sendo o(a) COMPRADOR(A) pessoa jurídica ou pessoa física que adquira o(s) Equipamento(s) para utilização como insumo de sua atividade econômica produtiva, a relação será regida exclusivamente pelo Código Civil e demais normas aplicáveis às relações empresariais, afastando-se a incidência do Código de Defesa do Consumidor.</p>
+
+<p class="sec">CLÁUSULA 5ª – DA CAPACITAÇÃO E RESPONSABILIDADE PELO USO</p>
+<p><strong>5.1.</strong> O(a) COMPRADOR(A) declara possuir conhecimento técnico e capacitação adequada, obtida por meio de treinamento específico, para operar os equipamentos descritos na Cláusula 1ª deste Contrato.</p>
+<p><strong>5.2.</strong> O(a) COMPRADOR(A) assume integral responsabilidade pela operação e manuseio dos equipamentos, quer por si, quer por terceiros a quem permita o uso, eximindo a VENDEDORA de qualquer responsabilidade por danos decorrentes da utilização dos equipamentos após a entrega técnica.</p>
+<p><strong>5.3. Limitação de responsabilidade.</strong> Sem prejuízo das obrigações de garantia previstas na Cláusula 4ª, a responsabilidade total da VENDEDORA perante o(a) COMPRADOR(A), por qualquer causa relacionada a este Contrato — contratual, extracontratual ou de qualquer outra natureza — fica limitada ao valor efetivamente pago pelo(a) COMPRADOR(A) pelo(s) Equipamento(s) objeto deste Contrato.</p>
+<p><strong>5.3.1.</strong> Em nenhuma hipótese a VENDEDORA responderá por: (i) lucros cessantes; (ii) perda de safra, de produtividade ou de faturamento; (iii) danos a culturas agrícolas, ao solo, à água, à fauna, à flora ou ao meio ambiente decorrentes da operação do Equipamento; (iv) multas, autuações ou sanções administrativas aplicadas ao(à) COMPRADOR(A) por órgãos reguladores; (v) danos a terceiros decorrentes da operação do Equipamento pelo(a) COMPRADOR(A) ou por pessoa a quem este permita o uso; e (vi) demais danos indiretos, mediatos ou consequenciais de qualquer natureza.</p>
+<p><strong>5.3.2.</strong> As limitações previstas nesta Cláusula 5.3 não se aplicam aos casos de dolo ou culpa grave comprovados da VENDEDORA, nem afastam direitos indisponíveis eventualmente assegurados ao(à) COMPRADOR(A) pelo Código de Defesa do Consumidor, quando este for aplicável nos termos da Cláusula 4.10.</p>
+
+<p class="sec">CLÁUSULA 6ª – DAS OBRIGAÇÕES DO(A) COMPRADOR(A)</p>
+<p>6.1. O(a) COMPRADOR(A) declara estar ciente e se obriga a:</p>
+<ul>
+<li>Operar o Equipamento de acordo com a legislação aeronáutica brasileira aplicável, incluindo, mas não se limitando, ao Regulamento Brasileiro da Aviação Civil Especial nº 94/2017 (RBAC-E nº 94) e às normas do DECEA;</li>
+<li>Realizar o cadastro do Equipamento no SISANT (Sistema de Aeronaves Não Tripuladas) da ANAC, quando aplicável;</li>
+<li>Solicitar autorização de voo via SARPAS (Sistema de Solicitação de Acesso de Aeronaves Remotamente Pilotadas ao Espaço Aéreo Brasileiro) sempre que exigido;</li>
+<li>Contratar e manter vigente seguro RETA (Responsabilidade pelo Risco Aeronáutico de Terceiros), quando obrigatório;</li>
+<li>Operar o Equipamento exclusivamente em conformidade com o manual do fabricante e os limites técnicos e legais aplicáveis;</li>
+<li>Manter os softwares e firmwares do Equipamento atualizados conforme orientação oficial DJI;</li>
+<li>Não permitir a abertura, modificação ou reparo do Equipamento por pessoa ou assistência não autorizada pelo fabricante;</li>
+<li>Conservar a Nota Fiscal de compra e a embalagem original durante todo o período de garantia.</li>
+</ul>
+
+<p class="sec">CLÁUSULA 7ª – DAS OBRIGAÇÕES DA VENDEDORA</p>
+<p>7.1. A VENDEDORA obriga-se a:</p>
+<ul>
+<li>Entregar o(s) Equipamento(s) novo(s), original(is) DJI, com a Nota Fiscal e demais documentos de comercialização;</li>
+<li>Prestar suporte de primeiro nível ao(à) COMPRADOR(A) e intermediar, quando necessário, o contato com a assistência técnica autorizada DJI no Brasil;</li>
+<li>Informar adequadamente sobre a Política de Garantia DJI, suas coberturas e exclusões, conforme detalhado neste Contrato;</li>
+<li>Cumprir a legislação aplicável, em especial o Código de Defesa do Consumidor, quando incidente.</li>
+</ul>
+
+<p class="sec">CLÁUSULA 8ª – DA RESCISÃO</p>
+<p>8.1. O presente Contrato poderá ser rescindido nas seguintes hipóteses:</p>
+<ul>
+<li>Por mútuo acordo entre as Partes, formalizado por escrito;</li>
+<li>Por descumprimento de qualquer cláusula contratual, hipótese em que a parte inocente notificará a parte infratora para sanar o descumprimento no prazo de 10 (dez) dias, sob pena de rescisão de pleno direito;</li>
+<li>Por falência, recuperação judicial, dissolução ou insolvência civil de qualquer das Partes;</li>
+<li>Por caso fortuito ou força maior que impossibilite, de forma definitiva, o cumprimento do objeto.</li>
+</ul>
+<p>8.2. A rescisão por inadimplemento do(a) COMPRADOR(A) faculta à VENDEDORA reter os valores pagos a título de perdas e danos, sem prejuízo das demais sanções previstas na Cláusula 2.4 e da indenização suplementar.</p>
+
+<p class="sec">CLÁUSULA 9ª – DA PROTEÇÃO DE DADOS PESSOAIS</p>
+<p>9.1. As Partes obrigam-se a tratar quaisquer dados pessoais coletados em razão deste Contrato em estrita conformidade com a Lei nº 13.709/2018 (Lei Geral de Proteção de Dados Pessoais – LGPD), utilizando-os apenas para a execução deste Contrato, cumprimento de obrigações legais, prestação de garantia e suporte técnico.</p>
+<p>9.2. As Partes adotarão medidas técnicas e administrativas razoáveis e adequadas para proteger os dados pessoais contra acessos não autorizados, vazamentos, perdas, alterações ou destruições.</p>
+
+<p class="sec">CLÁUSULA 10ª – DAS DISPOSIÇÕES GERAIS</p>
+<p>10.1. O presente Contrato representa o acordo integral entre as Partes, substituindo quaisquer entendimentos, propostas ou negociações anteriores, verbais ou escritos.</p>
+<p>10.2. A tolerância de qualquer das Partes quanto ao descumprimento de cláusulas deste Contrato não constituirá novação, renúncia ou alteração do quanto aqui pactuado.</p>
+<p>10.3. Caso qualquer disposição deste Contrato seja considerada nula, ilegal ou inexequível, as demais cláusulas permanecerão em pleno vigor e efeito.</p>
+<p>10.4. Qualquer alteração ao presente Contrato somente terá validade quando formalizada por meio de termo aditivo escrito, assinado por ambas as Partes.</p>
+<p>10.5. As Partes reconhecem como válidas as assinaturas eletrônicas apostas neste Contrato, nos termos do art. 10, § 2º, da MP 2.200-2/2001 e da Lei nº 14.063/2020.</p>
+
+<p class="sec">CLÁUSULA 11ª – DO FORO</p>
+<p>11.1. Fica eleito o foro da Comarca de Uberlândia, Estado de Minas Gerais, para dirimir quaisquer controvérsias decorrentes deste Contrato, com renúncia expressa a qualquer outro, por mais privilegiado que seja.</p>
+
+<p style="text-align:center;margin-top:28px">E, por estarem assim justas e contratadas, as Partes assinam o presente Contrato em 2 (duas) vias de igual teor e forma, na presença das testemunhas abaixo identificadas, para que produza seus regulares efeitos jurídicos.</p>
+<p style="text-align:center;margin-top:10px"><strong>Uberlândia/MG, ${dateExt}.</strong></p>
+
+<div style="margin-top:40px">
+  <div class="sig-line"></div>
+  <div class="sig-name"><strong>VENDEDORA</strong><br><strong>HECTARE UBERLANDIA DRONE LTDA</strong><br>CNPJ: <strong>64.985.431/0001-37</strong><br>Por: <strong>Davi Teixeira Neri</strong></div>
+</div>
+
+<div style="margin-top:30px">
+  <div class="sig-line"></div>
+  <div class="sig-name"><strong>COMPRADOR(A)</strong><br><strong>${cli.nome||"___________________"}</strong><br><strong>${docTipo}</strong>: <strong>${cli.doc||"___________________"}</strong></div>
+</div>
+
+<p style="margin-top:32px"><strong>TESTEMUNHAS:</strong></p>
+<div class="sig-grid">
+  <div><p>1) _______________________________________________</p><p>Nome: <strong>${meta.t1||"___________________"}</strong></p></div>
+  <div><p>2) _______________________________________________</p><p>Nome: <strong>${meta.t2||"___________________"}</strong></p></div>
+</div>
+<div class="page-footer">Página 1 de 1</div>
+</body></html>`
+    const w=window.open("","_blank")
+    if(!w){alert("Permita pop-ups para gerar o contrato.");return}
+    w.document.write(html);w.document.close()
+  }
+
+  function valorExtenso(n){
+    if(!n||n===0)return"zero reais"
+    const un=["","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez","onze","doze","treze","quatorze","quinze","dezesseis","dezessete","dezoito","dezenove"]
+    const dez=["","","vinte","trinta","quarenta","cinquenta","sessenta","setenta","oitenta","noventa"]
+    const cent=["","cento","duzentos","trezentos","quatrocentos","quinhentos","seiscentos","setecentos","oitocentos","novecentos"]
+    function g(v){
+      if(v===0)return""
+      if(v===100)return"cem"
+      let s=""
+      if(v>=100){s+=cent[Math.floor(v/100)];v%=100;if(v>0)s+=" e "}
+      if(v>=20){s+=dez[Math.floor(v/10)];v%=10;if(v>0)s+=" e "}
+      if(v>0)s+=un[v]
+      return s
+    }
+    const inteiro=Math.floor(n)
+    const centavos=Math.round((n-inteiro)*100)
+    let r=""
+    if(inteiro>=1000000){const m=Math.floor(inteiro/1000000);r+=g(m)+(m===1?" milhão":" milhões");const rest=inteiro%1000000;if(rest>0)r+=rest<1000?" e ":" "}
+    const restM=inteiro%1000000
+    if(restM>=1000){const mil=Math.floor(restM/1000);r+=(mil===1?"mil":g(mil)+" mil");const rest=restM%1000;if(rest>0)r+=rest<100?" e ":" e "}
+    const restMil=inteiro%1000
+    if(restMil>0)r+=g(restMil)
+    if(inteiro===0)r="zero"
+    r+=(inteiro===1?" real":" reais")
+    if(centavos>0)r+=" e "+g(centavos)+(centavos===1?" centavo":" centavos")
+    return r
+  }
+
+  function printQuote(){
+    saveOrder("orçamento")
+    const pm={};products.forEach(p=>{pm[p.name]=p})
+    const nm={};ncmData.forEach(n=>{nm[n.name]=n})
+    const tipoPessoa=tipo==="juridica"?"Pessoa Jurídica":"Pessoa Física"
+    const docTipo=tipo==="juridica"?"CNPJ":"CPF"
+    const today=new Date()
+    const dataEmissao=today.toLocaleDateString("pt-BR")
+    const validade=new Date(today.getTime()+15*86400000).toLocaleDateString("pt-BR")
+    const meses=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"]
+    const dataExt=today.getDate()+" de "+meses[today.getMonth()]+" de "+today.getFullYear()
+
+    const validItems=items.filter(i=>pm[i.product])
+    const validBonifs=bItems.filter(b=>b.item)
+
+    let itemRows="",idx=1
+    validItems.forEach(it=>{
+      const p=pm[it.product],n=+it.qty||1
+      const pf=it.isPromo?p.price*promoFactor:p.price-p.maxDisc*(+it.discPct||0)
+      const ncm=nm[it.product]
+      itemRows+=`<tr><td style="text-align:center">${idx++}</td><td><strong>${it.product}</strong></td><td style="text-align:center">${ncm?ncm.ncm:"—"}</td><td style="text-align:center">${n}</td><td style="text-align:right">R$ ${fmtN(pf)}</td><td style="text-align:right"><strong>R$ ${fmtN(pf*n)}</strong></td></tr>`
+    })
+
+    let bonRows=""
+    let bidx=1
+    validBonifs.forEach(b=>{
+      const bf=bonifs.find(x=>x.name===b.item)
+      const ncm=nm[b.item]
+      bonRows+=`<tr><td style="text-align:center">B${bidx++}</td><td><strong>${b.item}</strong></td><td style="text-align:center">${ncm?ncm.ncm:"—"}</td><td style="text-align:center">${b.qty||1}</td><td style="text-align:right">${bf?"R$ "+fmtN(bf.cost):"—"}</td></tr>`
+    })
+
+    const anatelNum=validItems.map(i=>{const n=nm[i.product];return n&&n.anatel?n.anatel:null}).filter(Boolean)[0]||"Consultar distribuidor oficial"
+
+    const css=`@page{size:A4;margin:2cm;@top-center{content:"Orçamento Hectare";font-family:Arial,sans-serif;font-size:8pt;color:#666}@bottom-center{content:"Orçamento Hectare  |  Página " counter(page) " de " counter(pages);font-family:Arial,sans-serif;font-size:8pt;color:#666}}
+body{font-family:Arial,sans-serif;font-size:10pt;color:#222;line-height:1.5;margin:0}
+h1{text-align:center;font-size:12pt;margin:0 0 16px;letter-spacing:.03em;text-transform:uppercase}
+.hdr-table{width:100%;border-collapse:collapse;margin-bottom:18px}
+.hdr-table td{padding:8px 12px;border:1px solid #ccc;vertical-align:top;font-size:10pt}
+.sec{font-size:10.5pt;font-weight:bold;margin:18px 0 8px;border-bottom:1.5px solid #222;padding-bottom:3px}
+table.items{width:100%;border-collapse:collapse;margin:8px 0;font-size:9.5pt}
+table.items th{background:#f0f0f0;font-weight:bold;padding:5px 8px;border:1px solid #ccc;text-align:center;font-size:9pt}
+table.items td{padding:4px 8px;border:1px solid #ccc}
+.resumo td{padding:6px 12px;border:1px solid #ccc;font-size:10pt}
+.obs{font-size:9.5pt;margin:4px 0;text-align:justify}
+.sig-box{border:1px solid #ccc;padding:14px;margin-top:20px}
+.pb{position:fixed;top:16px;right:16px;background:#22C55E;color:#000;border:none;padding:10px 22px;font-weight:bold;cursor:pointer;border-radius:6px;font-size:11pt;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+@media print{.pb{display:none}}`
+
+    const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Orçamento – ${cli.nome||"Cliente"}</title><style>${css}</style></head><body>
+<button class="pb" onclick="window.print()">⬇ Salvar PDF</button>
+<h1>ORÇAMENTO – AERONAVE NÃO TRIPULADA AGRÍCOLA</h1>
+
+<table class="hdr-table">
+<tr>
+<td style="width:60%"><strong>HECTARE UBERLANDIA DRONE LTDA</strong><br>CNPJ: 64.985.431/0001-37 │ IE: 54330720019<br>Av. Floriano Peixoto, 4431, Custódio Pereira<br>Uberlândia/MG │ CEP 38.405-184<br>Contato: (34) 99930-0965</td>
+<td><strong>Emissão: ${dataEmissao}</strong><br><strong>Validade: ${validade}</strong></td>
+</tr>
+</table>
+
+<p class="sec">1. DADOS DO COMPRADOR / TOMADOR DO CRÉDITO</p>
+<table class="items">
+<tr><td style="width:200px"><strong>Nome / Razão Social</strong></td><td><strong>${cli.nome||"___________________"}</strong></td></tr>
+<tr><td><strong>CPF / CNPJ</strong></td><td><strong>${cli.doc||"___________________"}</strong></td></tr>
+<tr><td><strong>Inscrição Estadual / Rural</strong></td><td><strong>${cli.ie||"___________________"}</strong></td></tr>
+<tr><td><strong>Endereço</strong></td><td><strong>${cli.end||"___________________"}</strong></td></tr>
+<tr><td><strong>Contato (tel / e-mail)</strong></td><td><strong>${[cli.tel,cli.email].filter(Boolean).join(" / ")||"___________________"}</strong></td></tr>
+</table>
+
+<p class="sec">2. EQUIPAMENTOS / ITENS FINANCIÁVEIS</p>
+<table class="items">
+<thead><tr><th>Item</th><th>Descrição</th><th>NCM</th><th>Qtd</th><th>Valor Unit. (R$)</th><th>Subtotal (R$)</th></tr></thead>
+<tbody>${itemRows}</tbody>
+</table>
+
+${validBonifs.length>0?`<p class="sec">3. ITENS BONIFICADOS</p>
+<table class="items">
+<thead><tr><th>Item</th><th>Descrição</th><th>NCM</th><th>Qtd</th><th>Valor de referência (R$) *</th></tr></thead>
+<tbody>${bonRows}</tbody>
+</table>
+<p style="font-size:8.5pt;color:#666;font-style:italic">* Itens bonificados não integram a base financiável. Valor de referência indicado apenas para fins de registro patrimonial.</p>`:""}
+
+<p class="sec">4. RESUMO FINANCEIRO</p>
+<table class="items resumo">
+<tr><td><strong>Subtotal dos itens (R$)</strong></td><td style="text-align:right"><strong>R$ ${fmtN(calcs.tp)}</strong></td></tr>
+<tr><td><strong>VALOR TOTAL DO ORÇAMENTO (R$)</strong></td><td style="text-align:right;font-size:12pt"><strong>R$ ${fmtN(calcs.tp)}</strong></td></tr>
+</table>
+<p><strong>Valor total por extenso: </strong><strong>${valorExtenso(calcs.tp)}</strong></p>
+
+<p class="sec">5. ESPECIFICAÇÕES FISCAIS E REGULATÓRIAS</p>
+<table class="items">
+<tr><td style="width:220px"><strong>Homologação ANATEL (aeronave)</strong></td><td><strong>${anatelNum}</strong></td></tr>
+<tr><td><strong>Origem / Conteúdo</strong></td><td>Aeronave e acessórios DJI: equipamentos novos, originais, importados e comercializados por meio do distribuidor oficial da marca no Brasil. Conteúdo: 100% importado. Misturador de calda (se incluso): fabricação nacional.</td></tr>
+</table>
+
+<p class="sec">6. CONDIÇÕES COMERCIAIS</p>
+<table class="items">
+<tr><td style="width:220px"><strong>Forma de pagamento</strong></td><td><strong>${meta.pgto||"___________________"}</strong></td></tr>
+<tr><td><strong>Frete</strong></td><td>Por conta da VENDEDORA, salvo acordo expresso em contrário.</td></tr>
+<tr><td><strong>Garantia</strong></td><td>Aeronave: conforme Política de Pós-Venda DJI vigente. Baterias: 12 meses ou 1.500 ciclos. Misturador (se incluído): 30 dias.</td></tr>
+</table>
+
+<p class="sec">7. OBSERVAÇÕES</p>
+<p class="obs">• Os números de série de cada equipamento serão informados na Nota Fiscal de venda.</p>
+<p class="obs">• A presente proposta é válida até a data acima indicada e pode ser confirmada por meio do Contrato de Compra e Venda.</p>
+<p class="obs">• Operação do equipamento sujeita ao RBAC-E nº 94/2017, à legislação do DECEA, ao cadastro no SISANT (ANAC) e à contratação do seguro RETA, quando obrigatório.</p>
+<p class="obs">• Documentos complementares disponíveis sob solicitação: ficha técnica do fabricante, declaração de distribuidor oficial DJI no Brasil e cópia do certificado ANATEL.</p>
+
+<div class="sig-box">
+<div style="border-top:1px solid #000;width:300px;margin:40px 0 5px"></div>
+<strong>HECTARE UBERLANDIA DRONE LTDA</strong><br>
+CNPJ: 64.985.431/0001-37<br>
+Por: Davi Teixeira Neri<br>
+Local e data de emissão: <strong>Uberlândia/MG</strong>, <strong>${dataExt}</strong>
+</div>
+</body></html>`
+
+    const w=window.open("","_blank")
+    if(!w){alert("Permita pop-ups para gerar o orçamento.");return}
+    w.document.write(html);w.document.close()
+  }
+
+  const stepInfo=[{n:1,l:"Pedido"},{n:2,l:"Cliente"},{n:3,l:"Contrato"}]
+  const filteredHist=searchHist?history.filter(h=>(h.client+h.vend+h.doc+h.date).toLowerCase().includes(searchHist.toLowerCase())):history
+
+  return(
+    <>
+      <style>{CSS}</style>
+      <div className="happ">
+        <div style={{maxWidth:960,margin:"0 auto"}}>
+
+          <div className="hdr">
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div>
+                <div className="logo-name">SIMULADOR DE VENDAS</div>
+                <div className="logo-sub">Hectare Uberlândia</div>
+              </div>
+            </div>
+            {notify&&<span className="notify">{notify}</span>}
+          </div>
+
+          <div className="tabs">
+            {[["pedido","＋ Novo pedido"],["tabela","💰 Tabela de preços"],["historico","📋 Histórico"]].map(([k,l])=>(
+              <button key={k} className={`tab${tab===k?" act":""}`} onClick={()=>setTab(k)}>{l}</button>
+            ))}
+            <button className={`tab${tab==="config"?" act":""}`} onClick={handleConfigTab}>🔒 Config</button>
+          </div>
+
+          {showPin&&<PinModal onSuccess={()=>{setCfgAuth(true);setShowPin(false);setTab("config")}} onClose={()=>setShowPin(false)}/>}
+
+          {/* ── PEDIDO ── */}
+          {tab==="pedido"&&<>
+            <div className="stepr">
+              {stepInfo.map(({n,l},i)=>(
+                <div key={n} style={{display:"flex",alignItems:"center",flex:1}}>
+                  <div className={`step-n${n<step?" done":n===step?" act":""}`}>{n<step?"✓":n}</div>
+                  <span className={`step-lbl${n===step?" act":""}`}>{l}</span>
+                  {i<2&&<div className={`step-line${n<step?" done":""}`} style={{flex:1,marginLeft:7}}/>}
+                </div>
+              ))}
+            </div>
+
+            {step===1&&<>
+              {promos.length>0&&<div className="card" style={{background:"linear-gradient(135deg,rgba(34,197,94,.08),rgba(59,130,246,.08))",border:"1px solid rgba(34,197,94,.25)"}}>
+                <div className="ctitle"><span className="dot" style={{background:"var(--ye)"}}/>PROMOÇÕES DISPONÍVEIS</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                  <select style={{flex:1,maxWidth:320}} value={activePromo} onChange={e=>applyPromo(e.target.value)}>
+                    <option value="">Sem promoção (pedido manual)</option>
+                    {promos.map(p=><option key={p.name} value={p.name}>{p.name} · R$ {fmtN(p.totalPrice)}</option>)}
+                  </select>
+                  {activePromo&&<button className="btn btn-sec btn-sm" onClick={()=>{setActivePromo("");setPromoFactor(1);setItems([{id:newId(),product:"",qty:1,discPct:0}]);setBItems([{id:newId(),item:"",qty:1}]);msg("Promo removida")}}>Limpar promo</button>}
+                </div>
+                {activePromo&&<p style={{fontSize:12,color:"var(--gr)",marginTop:8}}>✓ Promo ativa: <strong>{activePromo}</strong> — itens e bonificações preenchidos automaticamente</p>}
+              </div>}
+              <div className="card">
+                <div className="ctitle"><span className="dot"/>ITENS DO PEDIDO</div>
+                <div className="ovx">
+                  <table className="tbl">
+                    <thead><tr>
+                      <th style={{minWidth:190}}>Produto</th><th style={{width:56}}>Qtd</th>
+                      <th style={{width:110}}>Preço tab.</th><th style={{minWidth:155}}>% Desc. máx.</th>
+                      <th style={{width:110}}>Preço final</th><th style={{width:115}}>Subtotal</th><th style={{width:28}}/>
+                    </tr></thead>
+                    <tbody>
+                      {items.map((it,idx)=>{
+                        const p=products.find(x=>x.name===it.product)
+                        const n=+it.qty||0,d=+it.discPct||0
+                        const pf=it.isPromo?(p?p.price*promoFactor:0):(p?p.price-p.maxDisc*d:0)
+                        return <tr key={it.id} style={it.isPromo?{background:"rgba(245,158,11,.06)"}:{}}>
+                          <td><div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <select className="inp-sm" value={it.product} onChange={e=>updItem(idx,"product",e.target.value)} style={{flex:1}}>
+                              <option value="">Selecione...</option>
+                              {products.map(p=><option key={p.name} value={p.name}>{p.name}</option>)}
+                            </select>
+                            {it.isPromo&&<span style={{fontSize:9,background:"var(--ye)",color:"#000",padding:"1px 5px",borderRadius:4,fontWeight:700,whiteSpace:"nowrap"}}>PROMO</span>}
+                          </div></td>
+                          <td><input type="number" className="inp-sm" min="1" value={it.qty} style={{textAlign:"center",width:48}} onChange={e=>updItem(idx,"qty",e.target.value)}/></td>
+                          <td style={{fontSize:12,color:"var(--t2)",whiteSpace:"nowrap"}}>{p?fmtR(p.price):"—"}</td>
+                          <td>{it.isPromo
+                            ?<span style={{fontSize:12,color:"var(--ye)",fontWeight:600}}>{p?"-"+((1-promoFactor)*100).toFixed(1)+"%":"—"} (promo)</span>
+                            :<div className="range-wrap">
+                              <input type="range" min="0" max="1" step="0.01" value={it.discPct} onChange={e=>updItem(idx,"discPct",+e.target.value)}/>
+                              <span className="disc-badge">{(it.discPct*100).toFixed(0)}%</span>
+                            </div>
+                          }</td>
+                          <td style={{fontWeight:600,whiteSpace:"nowrap",color:it.isPromo?"var(--ye)":(it.discPct>0?"var(--ye)":"var(--t1)")}}>{p?fmtR(pf):"—"}</td>
+                          <td style={{fontWeight:700,whiteSpace:"nowrap",color:it.isPromo?"var(--ye)":"var(--gr)"}}>{p&&n>0?fmtR(pf*n):"—"}</td>
+                          <td><button className="btn-ghost" onClick={()=>setItems(items.filter((_,i)=>i!==idx))}>×</button></td>
+                        </tr>
+                      })}
+                    </tbody>
+                    <tfoot><tr className="total-row">
+                      <td colSpan={5} style={{textAlign:"right",fontSize:12,color:"var(--t2)"}}>TOTAL DO PEDIDO</td>
+                      <td style={{fontFamily:"'Syne',sans-serif",fontSize:15,color:calcs.isPromo?"var(--ye)":"var(--gr)",whiteSpace:"nowrap"}}>{calcs.tp>0?fmtR(calcs.tp):"—"}</td>
+                      <td/>
+                    </tr></tfoot>
+                  </table>
+                </div>
+                {calcs.isPromo&&calcs.tpNormal>0&&<p style={{fontSize:11,color:"var(--t3)",marginTop:6}}>Composição: Promo {fmtR(calcs.tpPromo)} + Avulsos {fmtR(calcs.tpNormal)}</p>}
+                {calcs.isPromo&&calcs.tpNormal===0&&<p style={{fontSize:11,color:"var(--ye)",marginTop:6}}>Valor da promoção aplicado</p>}
+                {calcs.tp>0&&<div style={{display:"flex",gap:6,marginTop:8,alignItems:"center",flexWrap:"wrap"}}>
+                  <span style={{fontSize:11,color:"var(--t3)"}}>Ajustar total para:</span>
+                  <input type="number" placeholder="Ex: 290000" value={roundTarget} onChange={e=>setRoundTarget(e.target.value)} style={{width:130,fontSize:12,padding:"4px 8px"}}/>
+                  <button className="btn btn-sec btn-sm" style={{fontSize:11}} onClick={applyRoundTotal}>Aplicar</button>
+                  {roundTarget&&+roundTarget>0&&<span style={{fontSize:11,color:"var(--t3)"}}>({fmtR(+roundTarget)})</span>}
+                </div>}
+                <div style={{display:"flex",gap:8,marginTop:10,alignItems:"center",flexWrap:"wrap"}}>
+                  <button className="btn btn-sec btn-sm" onClick={()=>setItems([...items,{id:newId(),product:"",qty:1,discPct:0}])}>+ Adicionar produto</button>
+                  {kits.length>0&&<select style={{fontSize:12,padding:"5px 8px",maxWidth:220}} value="" onChange={e=>{if(e.target.value)applyKit(e.target.value)}}>
+                    <option value="">📦 Kit rápido...</option>
+                    {kits.map(k=><option key={k.name} value={k.name}>{k.name} ({(k.items||[]).length} itens)</option>)}
+                  </select>}
+                </div>
+              </div>
+
+              <div className="card">
+                <div className="ctitle"><span className="dot bl"/>BONIFICAÇÕES
+                  {calcs.tb>0&&<span style={{marginLeft:"auto"}}>{calcs.tb>calcs.bmax?<Badge color="red">⚠ Limite excedido</Badge>:<Badge color="green">OK</Badge>}</span>}
+                </div>
+                <div className="ovx">
+                  <table className="tbl">
+                    <thead><tr><th style={{minWidth:170}}>Item</th><th style={{width:56}}>Qtd</th><th style={{width:115}}>Custo un.</th><th style={{width:115}}>Custo total</th><th style={{width:28}}/></tr></thead>
+                    <tbody>
+                      {bItems.map((b,idx)=>{
+                        const bf=bonifs.find(x=>x.name===b.item)
+                        const total=bf?bf.cost*(+b.qty||0):0
+                        return <tr key={b.id}>
+                          <td><select className="inp-sm" value={b.item} onChange={e=>updBonif(idx,"item",e.target.value)}>
+                            <option value="">Selecione...</option>
+                            {bonifs.map(b=><option key={b.name} value={b.name}>{b.name}</option>)}
+                          </select></td>
+                          <td><input type="number" className="inp-sm" min="1" value={b.qty} style={{textAlign:"center",width:48}} onChange={e=>updBonif(idx,"qty",e.target.value)}/></td>
+                          <td style={{fontSize:12,color:"var(--t2)"}}>{bf?fmtR(bf.cost):"—"}</td>
+                          <td style={{fontWeight:600,color:"var(--bl)"}}>{total>0?fmtR(total):"—"}</td>
+                          <td><button className="btn-ghost" onClick={()=>setBItems(bItems.filter((_,i)=>i!==idx))}>×</button></td>
+                        </tr>
+                      })}
+                    </tbody>
+                    <tfoot><tr className="total-row">
+                      <td colSpan={3} style={{textAlign:"right",fontSize:12,color:"var(--t2)"}}>TOTAL · LIMITE (5%)</td>
+                      <td><span style={{color:calcs.tb>calcs.bmax?"var(--re)":"var(--bl)",fontWeight:600}}>{fmtR(calcs.tb)}</span>
+                        <span style={{color:"var(--t3)",fontSize:11}}> · {fmtR(calcs.bmax)}</span></td>
+                      <td/>
+                    </tr></tfoot>
+                  </table>
+                </div>
+                {calcs.tb>calcs.bmax&&calcs.tb>0&&<div className="alert-warn" style={{marginTop:10}}>⚠ Bonificação excede o limite de 5% do pedido</div>}
+                <button className="btn btn-sec btn-sm" style={{marginTop:10}} onClick={()=>setBItems([...bItems,{id:newId(),item:"",qty:1}])}>+ Adicionar bonificação</button>
+              </div>
+
+              {/* PAINEL DO VENDEDOR - sem margens expostas */}
+              {calcs.tp>0&&<>
+                <div className="card">
+                  <div className="ctitle"><span className="dot ye"/>APROVAÇÃO DO PEDIDO</div>
+                  <div className="metrics">
+                    <Metric label="Aproveitamento" value={fmtP(calcs.aprov)} sub={<Badge color={calcs.col}>{calcs.status}</Badge>} color={calcs.col} progress={calcs.aprov}/>
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="ctitle"><span className="dot bl"/>SUA COMISSÃO{calcs.hasCustomCom&&<span style={{marginLeft:"auto"}}><Badge color="yellow">PROMO</Badge></span>}</div>
+                  <div className="metrics" style={{gridTemplateColumns:"1fr 1fr"}}>
+                    <Metric label="Valor da comissão" value={fmtR(calcs.comR)} color="blue"/>
+                    <Metric label="Percentual" value={fmtP(calcs.comPct)} sub={calcs.hasCustomCom?"comissão definida na promo":"sobre o valor do pedido"} color="blue"/>
+                  </div>
+                </div>
+              </>}
+
+              <div className="btn-row">
+                <button className="btn btn-gr" onClick={()=>setStep(2)}>Continuar → dados do cliente</button>
+              </div>
+            </>}
+
+            {step===2&&<>
+              <div className="card">
+                <div className="ctitle"><span className="dot"/>DADOS DO CLIENTE</div>
+                <div style={{marginBottom:14}}>
+                  <span className="lbl">Tipo de pessoa</span>
+                  <div className="toggle-g">
+                    {[["juridica","Pessoa jurídica"],["fisica","Pessoa física"]].map(([v,l])=>(
+                      <button key={v} className={`tog-btn${tipo===v?" act":""}`} onClick={()=>setTipo(v)}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div><span className="lbl">{tipo==="juridica"?"Razão social":"Nome completo"}</span><input value={cli.nome} onChange={e=>setCli({...cli,nome:e.target.value})}/></div>
+                  <div><span className="lbl">{tipo==="juridica"?"CNPJ":"CPF"}</span><input value={cli.doc} onChange={e=>setCli({...cli,doc:e.target.value})}/></div>
+                </div>
+                {tipo==="juridica"&&<div className="form-row w1"><span className="lbl">Inscrição Estadual / Rural</span><input placeholder="Ex: 123.456.789.0012 ou isento" value={cli.ie} onChange={e=>setCli({...cli,ie:e.target.value})}/></div>}
+                <div className="form-row w1"><span className="lbl">Endereço completo</span><input value={cli.end} onChange={e=>setCli({...cli,end:e.target.value})}/></div>
+                <div className="form-row">
+                  <div><span className="lbl">Nome do representante</span><input value={cli.repNome} onChange={e=>setCli({...cli,repNome:e.target.value})}/></div>
+                  <div><span className="lbl">CPF do representante</span><input value={cli.repCpf} onChange={e=>setCli({...cli,repCpf:e.target.value})}/></div>
+                </div>
+                <div className="form-row">
+                  <div><span className="lbl">E-mail</span><input type="email" value={cli.email} onChange={e=>setCli({...cli,email:e.target.value})}/></div>
+                  <div><span className="lbl">Telefone / WhatsApp</span><input value={cli.tel} onChange={e=>setCli({...cli,tel:e.target.value})}/></div>
+                </div>
+              </div>
+              <div className="card">
+                <div className="ctitle"><span className="dot bl"/>INFORMAÇÕES DO PEDIDO</div>
+                <div className="form-row">
+                  <div><span className="lbl">Vendedor responsável</span>
+                    <select value={meta.vend} onChange={e=>setMeta({...meta,vend:e.target.value})}>
+                      <option value="">Selecione...</option>
+                      {sellers.map(s=><option key={s.name} value={s.name}>{s.name}</option>)}
+                    </select></div>
+                  <div><span className="lbl">Forma de pagamento</span><input placeholder="Ex: 50% entrada + 50% na entrega" value={meta.pgto} onChange={e=>setMeta({...meta,pgto:e.target.value})}/></div>
+                </div>
+                <div className="form-row">
+                  <div><span className="lbl">Prazo de entrega</span><input type="date" value={meta.prazo} onChange={e=>setMeta({...meta,prazo:e.target.value})}/></div>
+                  <div><span className="lbl">Local de entrega</span><input value={meta.local} onChange={e=>setMeta({...meta,local:e.target.value})}/></div>
+                </div>
+              </div>
+              <div className="card">
+                <div className="ctitle"><span className="dot ye"/>TESTEMUNHAS</div>
+                <div className="form-row">
+                  <div><span className="lbl">Testemunha 1 — Nome</span><input placeholder="Nome completo" value={meta.t1} onChange={e=>setMeta({...meta,t1:e.target.value})}/></div>
+                  <div><span className="lbl">Testemunha 1 — E-mail</span><input type="email" placeholder="email@exemplo.com" value={meta.t1email} onChange={e=>setMeta({...meta,t1email:e.target.value})}/></div>
+                </div>
+                <div className="form-row">
+                  <div><span className="lbl">Testemunha 2 — Nome</span><input placeholder="Nome completo" value={meta.t2} onChange={e=>setMeta({...meta,t2:e.target.value})}/></div>
+                  <div><span className="lbl">Testemunha 2 — E-mail</span><input type="email" placeholder="email@exemplo.com" value={meta.t2email} onChange={e=>setMeta({...meta,t2email:e.target.value})}/></div>
+                </div>
+              </div>
+              <div className="btn-row">
+                <button className="btn btn-sec" onClick={()=>setStep(1)}>← Voltar</button>
+                <button className="btn btn-gr" onClick={()=>setStep(3)}>Continuar → contrato</button>
+              </div>
+            </>}
+
+            {step===3&&<>
+              <div className="card">
+                <div className="ctitle"><span className="dot"/>RESUMO DO PEDIDO</div>
+                {items.filter(i=>products.find(p=>p.name===i.product)).map((it,idx)=>{
+                  const p=products.find(x=>x.name===it.product),n=+it.qty||1,d=+it.discPct||0
+                  const pf=it.isPromo?p.price*promoFactor:p.price-p.maxDisc*d
+                  return <div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:"1px solid var(--bd)",fontSize:13}}>
+                    <span>{it.isPromo&&<span style={{fontSize:9,background:"var(--ye)",color:"#000",padding:"1px 4px",borderRadius:3,fontWeight:700,marginRight:5}}>PROMO</span>}{it.product} <span style={{color:"var(--t2)"}}>× {n}</span>{!it.isPromo&&d>0&&<span style={{color:"var(--re)",fontSize:11}}> ({(d*100).toFixed(0)}% desc.)</span>}</span>
+                    <strong style={{color:it.isPromo?"var(--ye)":"var(--gr)"}}>{fmtR(pf*n)}</strong>
+                  </div>
+                })}
+                {bItems.filter(b=>bonifs.find(x=>x.name===b.item)).map((b,idx)=>(
+                  <div key={idx} style={{display:"flex",justifyContent:"space-between",padding:"5px 0",borderBottom:"1px solid var(--bd)",fontSize:12,color:"var(--bl)"}}>
+                    <span>🎁 {b.item} × {b.qty||1}</span><span>Bonificação</span>
+                  </div>
+                ))}
+                <div className="metrics" style={{marginTop:14}}>
+                  <Metric label="Total" value={fmtR(calcs.tp)}/>
+                  <Metric label="Aproveitamento" value={fmtP(calcs.aprov)} color={calcs.col}/>
+                  <Metric label="Comissão" value={fmtR(calcs.comR)} color="blue"/>
+                </div>
+              </div>
+              <div className="card">
+                <div className="ctitle"><span className="dot"/>CONTRATO E ASSINATURA DIGITAL</div>
+                <div className="tip" style={{marginBottom:14}}>
+                  Clique em <strong style={{color:"var(--t1)"}}>Gerar PDF</strong> para abrir o contrato. Salve como PDF e envie via <strong style={{color:"var(--t1)"}}>Google Drive eSignature</strong>.
+                </div>
+                <div className="esign-box">
+                  <strong style={{color:"var(--t1)"}}>E-mails para o eSignature:</strong><br/>
+                  🧑‍💼 Vendedor: <span style={{color:"var(--gr)"}}>{meta.vend||"(preencher)"}</span><br/>
+                  🏢 Cliente: <span style={{color:"var(--gr)"}}>{cli.email||"(preencher)"}</span><br/>
+                  {meta.t1email&&<>👤 Testemunha 1: <span style={{color:"var(--gr)"}}>{meta.t1email}</span><br/></>}
+                  {meta.t2email&&<>👤 Testemunha 2: <span style={{color:"var(--gr)"}}>{meta.t2email}</span></>}
+                </div>
+                <div className="btn-row" style={{justifyContent:"flex-start"}}>
+                  <button className="btn btn-gr" onClick={printContract}>📄 Gerar Contrato</button>
+                  <button className="btn btn-ye" style={{background:"var(--ye)",color:"#000"}} onClick={printQuote}>📋 Gerar Orçamento</button>
+                  <button className="btn btn-sec" onClick={()=>setStep(2)}>← Editar</button>
+                </div>
+                <p style={{fontSize:11,color:"var(--t3)",marginTop:8}}>Ao gerar, o pedido é salvo automaticamente no histórico.</p>
+              </div>
+            </>}
+          </>}
+
+          {/* ── TABELA DE PREÇOS ── */}
+          {tab==="tabela"&&<div className="card">
+            <div className="ctitle"><span className="dot"/>TABELA DE PREÇOS · DJI AGRAS</div>
+            <div className="ovx">
+              <table className="tbl">
+                <thead><tr>
+                  <th style={{minWidth:220}}>Produto</th>
+                  <th style={{width:130}}>Preço tabela (R$)</th>
+                  <th style={{width:130}}>Desc. máx (R$)</th>
+                  <th style={{width:130}}>Preço mín. (R$)</th>
+                </tr></thead>
+                <tbody>
+                  {products.map((p,idx)=>(
+                    <tr key={idx}>
+                      <td style={{fontWeight:500}}>{p.name}</td>
+                      <td style={{textAlign:"right",color:"var(--t1)"}}>{fmtR(p.price)}</td>
+                      <td style={{textAlign:"right",color:"var(--re)"}}>{fmtR(p.maxDisc)}</td>
+                      <td style={{textAlign:"right",color:"var(--gr)",fontWeight:600}}>{fmtR(p.price-p.maxDisc)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{fontSize:11,color:"var(--t3)",marginTop:12}}>
+              {products.length} produtos cadastrados · Valores editáveis em 🔒 Config → Produtos
+            </div>
+          </div>}
+
+          {/* ── HISTÓRICO ── */}
+          {tab==="historico"&&<div className="card">
+            <div className="ctitle"><span className="dot bl"/>PEDIDOS SALVOS</div>
+            <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
+              <input placeholder="🔍 Buscar por cliente, vendedor, doc..." value={searchHist} onChange={e=>setSearchHist(e.target.value)} style={{flex:1,minWidth:200}}/>
+              <button className="btn btn-bl btn-sm" onClick={exportCSV}>⬇ Exportar CSV</button>
+            </div>
+            {filteredHist.length===0
+              ?<div className="empty">{searchHist?"Nenhum resultado encontrado.":"Nenhum pedido salvo ainda."}</div>
+              :filteredHist.map((h)=>(
+                <div key={h.id} className="hist-row" style={{flexWrap:"wrap"}}>
+                  <div style={{flex:1,minWidth:180}}>
+                    <div style={{fontWeight:600,fontSize:13}}>{h.client} {h.source&&h.source!=="manual"&&<span style={{fontSize:9,background:h.source==="contrato"?"var(--gr)":"var(--ye)",color:"#000",padding:"1px 5px",borderRadius:4,fontWeight:700,marginLeft:4}}>{h.source==="contrato"?"CONTRATO":"ORÇAMENTO"}</span>}</div>
+                    <div style={{fontSize:11,color:"var(--t3)"}}>{h.date} · {h.vend} · {h.doc}</div>
+                    <div className="hist-actions">
+                      {h._items&&<button className="btn btn-sec btn-sm" style={{fontSize:11,padding:"2px 8px",color:"var(--bl)"}} onClick={()=>restoreFromHistory(h)}>🔄 Restaurar</button>}
+                      <button className="btn btn-sec btn-sm" style={{fontSize:11,padding:"2px 8px"}} onClick={()=>{const ta=document.createElement("textarea");ta.value=[h.date,h.client,h.doc,h.tipo||"—",h.vend,h.prodList||"",h.bonList||"",(h.total||0).toFixed(2),((h.aprov||0)*100).toFixed(1)+"%",(h.com||0).toFixed(2),h.status||"—",h.pgto||"—"].join("\t");ta.style.cssText="position:fixed;left:-9999px";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);msg("✓ Copiado")}}>📋 Copiar</button>
+                      <button className="btn btn-sec btn-sm" style={{fontSize:11,padding:"2px 8px",color:"var(--re)",borderColor:"rgba(239,68,68,.3)"}} onClick={()=>{const hid=h.id;setHistory(prev=>prev.filter(x=>x.id!==hid));msg("✓ Pedido excluído")}}>🗑 Excluir</button>
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontWeight:700,color:"var(--gr)",fontSize:14}}>{fmtR(h.total)}</div>
+                    <Badge color={h.aprov>=.7?"green":h.aprov>=.4?"yellow":"red"}>{((h.aprov||0)*100).toFixed(0)}% aprov.</Badge>
+                  </div>
+                </div>
+              ))
+            }
+          </div>}
+
+          {/* ── CONFIG (protegido) ── */}
+          {tab==="config"&&cfgAuth&&<>
+            <div className="tabs" style={{marginBottom:16}}>
+              {[["produtos","Produtos"],["bonifs","Bonificações"],["promos","Promoções"],["kits","Kits"],["sellers","Vendedores"],["pin","PIN"]].map(([k,l])=>(
+                <button key={k} className={`tab${ctab===k?" act":""}`} onClick={()=>setCtab(k)}>{l}</button>
+              ))}
+            </div>
+
+            {ctab==="produtos"&&<div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div className="ctitle" style={{marginBottom:0}}><span className="dot"/>TABELA DE PRODUTOS <span style={{fontSize:11,color:"var(--t3)",fontWeight:400,fontFamily:"'DM Sans',sans-serif"}}>· {products.length} itens</span></div>
+                <button className="btn btn-sec btn-sm" onClick={()=>reset("p")}>Resetar padrão</button>
+              </div>
+              <div className="ovx">
+                <table className="tbl">
+                  <thead><tr>
+                    <th style={{minWidth:200}}>Nome</th><th style={{width:115}}>Preço tab. (R$)</th>
+                    <th style={{width:115}}>CMV (R$)</th><th style={{width:115}}>Desc. máx (R$)</th>
+                    <th style={{width:75}}>MC máx %</th><th style={{width:115}}>MC máx R$</th><th style={{width:28}}/>
+                  </tr></thead>
+                  <tbody>
+                    {products.map((p,idx)=>{
+                      const mc=p.price>0?((COEF_PV*p.price-COEF_CMV*p.cmv)/p.price*100).toFixed(1)+"%":"—"
+                      const mcAbs=p.price>0?fmtR(COEF_PV*p.price-COEF_CMV*p.cmv):"—"
+                      return <tr key={idx}>
+                        <td><input className="inp-sm" value={p.name} onChange={e=>updProd(idx,"name",e.target.value)}/></td>
+                        <td><input type="number" className="inp-num" value={p.price} onChange={e=>updProd(idx,"price",e.target.value)}/></td>
+                        <td><input type="number" className="inp-num" value={p.cmv} onChange={e=>updProd(idx,"cmv",e.target.value)}/></td>
+                        <td><input type="number" className="inp-num" value={p.maxDisc} onChange={e=>updProd(idx,"maxDisc",e.target.value)}/></td>
+                        <td style={{fontSize:12,color:"var(--t2)",textAlign:"right"}}>{mc}</td>
+                        <td style={{fontSize:12,color:"var(--t2)",textAlign:"right"}}>{mcAbs}</td>
+                        <td><button className="btn-ghost" onClick={()=>setProducts(products.filter((_,i)=>i!==idx))}>×</button></td>
+                      </tr>
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <button className="btn btn-sec btn-sm" style={{marginTop:10}} onClick={()=>setProducts([...products,{name:"",price:0,cmv:0,maxDisc:0}])}>+ Novo produto</button>
+            </div>}
+
+            {ctab==="bonifs"&&<div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div className="ctitle" style={{marginBottom:0}}><span className="dot bl"/>BONIFICAÇÕES <span style={{fontSize:11,color:"var(--t3)",fontWeight:400,fontFamily:"'DM Sans',sans-serif"}}>· {bonifs.length} itens</span></div>
+                <button className="btn btn-sec btn-sm" onClick={()=>reset("b")}>Resetar padrão</button>
+              </div>
+              <table className="tbl">
+                <thead><tr><th>Nome do item</th><th style={{width:145}}>Custo (R$)</th><th style={{width:28}}/></tr></thead>
+                <tbody>
+                  {bonifs.map((b,idx)=>(
+                    <tr key={idx}>
+                      <td><input className="inp-sm" value={b.name} onChange={e=>updBon(idx,"name",e.target.value)}/></td>
+                      <td><input type="number" className="inp-num" value={b.cost} onChange={e=>updBon(idx,"cost",e.target.value)}/></td>
+                      <td><button className="btn-ghost" onClick={()=>setBonifs(bonifs.filter((_,i)=>i!==idx))}>×</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <button className="btn btn-sec btn-sm" style={{marginTop:10}} onClick={()=>setBonifs([...bonifs,{name:"",cost:0}])}>+ Novo item</button>
+            </div>}
+
+            {ctab==="promos"&&<div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div className="ctitle" style={{marginBottom:0}}><span className="dot" style={{background:"var(--ye)"}}/>PROMOÇÕES <span style={{fontSize:11,color:"var(--t3)",fontWeight:400,fontFamily:"'DM Sans',sans-serif"}}>· {promos.length} cadastradas</span></div>
+              </div>
+              {promos.length===0&&<p style={{fontSize:13,color:"var(--t3)",marginBottom:12}}>Nenhuma promoção cadastrada. Crie uma abaixo.</p>}
+              {promos.map((promo,pi)=>{
+                const pm={};products.forEach(p=>{pm[p.name]=p})
+                const listPrice=(promo.items||[]).reduce((s,i)=>{const p=pm[i.product];return s+(p?p.price*(+i.qty||1):0)},0)
+                const desconto=listPrice>0?((1-promo.totalPrice/listPrice)*100).toFixed(1):0
+                return <div key={pi} style={{background:"var(--s2)",border:"1px solid var(--bd)",borderRadius:10,padding:14,marginBottom:12}}>
+                  <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center",flexWrap:"wrap"}}>
+                    <div style={{flex:1,minWidth:180}}>
+                      <span className="lbl">Nome da promo</span>
+                      <input value={promo.name} placeholder="Ex: Kit T100 Verão" onChange={e=>{const n=[...promos];n[pi]={...n[pi],name:e.target.value};setPromos(n)}}/>
+                    </div>
+                    <div style={{width:150}}>
+                      <span className="lbl">Valor do conjunto (R$)</span>
+                      <input type="number" className="inp-num" value={promo.totalPrice} onChange={e=>{const n=[...promos];n[pi]={...n[pi],totalPrice:+e.target.value||0};setPromos(n)}}/>
+                    </div>
+                    <div style={{width:110}}>
+                      <span className="lbl">Comissão (%)</span>
+                      <input type="number" className="inp-num" step="0.1" min="0" max="100" placeholder="Auto" value={promo.comPct!=null?promo.comPct:""} onChange={e=>{const n=[...promos];const v=e.target.value;n[pi]={...n[pi],comPct:v===""?null:+v||0};setPromos(n)}}/>
+                    </div>
+                    <div style={{alignSelf:"flex-end"}}>
+                      <button className="btn-ghost" style={{color:"var(--re)",fontSize:16}} onClick={()=>setPromos(promos.filter((_,i)=>i!==pi))}>×</button>
+                    </div>
+                  </div>
+                  {promo.comPct!=null&&promo.comPct>0?<p style={{fontSize:11,color:"var(--ye)",marginBottom:4}}>Comissão fixa: {promo.comPct}%</p>:<p style={{fontSize:11,color:"var(--t3)",marginBottom:4}}>Comissão: calculada automaticamente</p>}
+                  {listPrice>0&&<p style={{fontSize:12,color:"var(--t3)",marginBottom:8}}>Preço tabela: {fmtR(listPrice)} · Desconto: {desconto}%</p>}
+
+                  <span className="lbl" style={{marginTop:6}}>Produtos da promo</span>
+                  <table className="tbl" style={{marginBottom:8}}>
+                    <thead><tr><th>Produto</th><th style={{width:60}}>Qtd</th><th style={{width:28}}/></tr></thead>
+                    <tbody>
+                      {(promo.items||[]).map((it,ii)=>(
+                        <tr key={ii}>
+                          <td><select className="inp-sm" value={it.product} onChange={e=>{const n=[...promos];const items=[...(n[pi].items||[])];items[ii]={...items[ii],product:e.target.value};n[pi]={...n[pi],items};setPromos(n)}}>
+                            <option value="">Selecione...</option>
+                            {products.map(p=><option key={p.name} value={p.name}>{p.name}</option>)}
+                          </select></td>
+                          <td><input type="number" className="inp-sm" min="1" style={{textAlign:"center",width:48}} value={it.qty} onChange={e=>{const n=[...promos];const items=[...(n[pi].items||[])];items[ii]={...items[ii],qty:+e.target.value||1};n[pi]={...n[pi],items};setPromos(n)}}/></td>
+                          <td><button className="btn-ghost" onClick={()=>{const n=[...promos];n[pi]={...n[pi],items:(n[pi].items||[]).filter((_,i)=>i!==ii)};setPromos(n)}}>×</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <button className="btn btn-sec btn-sm" onClick={()=>{const n=[...promos];n[pi]={...n[pi],items:[...(n[pi].items||[]),{product:"",qty:1}]};setPromos(n)}}>+ Produto</button>
+
+                  <span className="lbl" style={{marginTop:14,display:"block"}}>Bonificações da promo</span>
+                  <table className="tbl" style={{marginBottom:8}}>
+                    <thead><tr><th>Item</th><th style={{width:60}}>Qtd</th><th style={{width:28}}/></tr></thead>
+                    <tbody>
+                      {(promo.bonifs||[]).map((b,bi)=>(
+                        <tr key={bi}>
+                          <td><select className="inp-sm" value={b.item} onChange={e=>{const n=[...promos];const bns=[...(n[pi].bonifs||[])];bns[bi]={...bns[bi],item:e.target.value};n[pi]={...n[pi],bonifs:bns};setPromos(n)}}>
+                            <option value="">Selecione...</option>
+                            {bonifs.map(b=><option key={b.name} value={b.name}>{b.name}</option>)}
+                          </select></td>
+                          <td><input type="number" className="inp-sm" min="1" style={{textAlign:"center",width:48}} value={b.qty} onChange={e=>{const n=[...promos];const bns=[...(n[pi].bonifs||[])];bns[bi]={...bns[bi],qty:+e.target.value||1};n[pi]={...n[pi],bonifs:bns};setPromos(n)}}/></td>
+                          <td><button className="btn-ghost" onClick={()=>{const n=[...promos];n[pi]={...n[pi],bonifs:(n[pi].bonifs||[]).filter((_,i)=>i!==bi)};setPromos(n)}}>×</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <button className="btn btn-sec btn-sm" onClick={()=>{const n=[...promos];n[pi]={...n[pi],bonifs:[...(n[pi].bonifs||[]),{item:"",qty:1}]};setPromos(n)}}>+ Bonificação</button>
+                </div>
+              })}
+              <button className="btn btn-gr btn-sm" style={{marginTop:8}} onClick={()=>setPromos([...promos,{name:"",totalPrice:0,comPct:null,items:[{product:"",qty:1}],bonifs:[]}])}>+ Nova promoção</button>
+            </div>}
+
+            {ctab==="kits"&&<div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div className="ctitle" style={{marginBottom:0}}><span className="dot"/>KITS DE PRODUTOS <span style={{fontSize:11,color:"var(--t3)",fontWeight:400,fontFamily:"'DM Sans',sans-serif"}}>· {kits.length} cadastrados</span></div>
+              </div>
+              <p style={{fontSize:12,color:"var(--t3)",marginBottom:12}}>Kits são conjuntos pré-definidos de produtos para agilizar pedidos. Não alteram preço — apenas adicionam itens ao pedido.</p>
+              {kits.map((kit,ki)=>(
+                <div key={ki} style={{background:"var(--s2)",border:"1px solid var(--bd)",borderRadius:10,padding:14,marginBottom:12}}>
+                  <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}>
+                    <div style={{flex:1}}>
+                      <span className="lbl">Nome do kit</span>
+                      <input value={kit.name} placeholder="Ex: Kit T100 completo" onChange={e=>{const n=[...kits];n[ki]={...n[ki],name:e.target.value};setKits(n)}}/>
+                    </div>
+                    <div style={{alignSelf:"flex-end"}}>
+                      <button className="btn-ghost" style={{color:"var(--re)",fontSize:16}} onClick={()=>setKits(kits.filter((_,i)=>i!==ki))}>×</button>
+                    </div>
+                  </div>
+                  <span className="lbl">Produtos do kit</span>
+                  <table className="tbl" style={{marginBottom:8}}>
+                    <thead><tr><th>Produto</th><th style={{width:60}}>Qtd</th><th style={{width:28}}/></tr></thead>
+                    <tbody>
+                      {(kit.items||[]).map((it,ii)=>(
+                        <tr key={ii}>
+                          <td><select className="inp-sm" value={it.product} onChange={e=>{const n=[...kits];const items=[...(n[ki].items||[])];items[ii]={...items[ii],product:e.target.value};n[ki]={...n[ki],items};setKits(n)}}>
+                            <option value="">Selecione...</option>
+                            {products.map(p=><option key={p.name} value={p.name}>{p.name}</option>)}
+                          </select></td>
+                          <td><input type="number" className="inp-sm" min="1" style={{textAlign:"center",width:48}} value={it.qty} onChange={e=>{const n=[...kits];const items=[...(n[ki].items||[])];items[ii]={...items[ii],qty:+e.target.value||1};n[ki]={...n[ki],items};setKits(n)}}/></td>
+                          <td><button className="btn-ghost" onClick={()=>{const n=[...kits];n[ki]={...n[ki],items:(n[ki].items||[]).filter((_,i)=>i!==ii)};setKits(n)}}>×</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <button className="btn btn-sec btn-sm" onClick={()=>{const n=[...kits];n[ki]={...n[ki],items:[...(n[ki].items||[]),{product:"",qty:1}]};setKits(n)}}>+ Produto</button>
+                </div>
+              ))}
+              <button className="btn btn-gr btn-sm" style={{marginTop:8}} onClick={()=>setKits([...kits,{name:"",items:[{product:"",qty:1}]}])}>+ Novo kit</button>
+            </div>}
+
+            {ctab==="sellers"&&<div className="card">
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+                <div className="ctitle" style={{marginBottom:0}}><span className="dot ye"/>VENDEDORES <span style={{fontSize:11,color:"var(--t3)",fontWeight:400,fontFamily:"'DM Sans',sans-serif"}}>· {sellers.length} cadastrados</span></div>
+                <button className="btn btn-sec btn-sm" onClick={()=>reset("s")}>Resetar padrão</button>
+              </div>
+              {sellers.map((s,idx)=>(
+                <div key={idx} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
+                  <input style={{maxWidth:340}} value={s.name} placeholder="Nome do vendedor" onChange={e=>updSel(idx,e.target.value)}/>
+                  <button className="btn-ghost" onClick={()=>setSellers(sellers.filter((_,i)=>i!==idx))}>×</button>
+                </div>
+              ))}
+              <button className="btn btn-sec btn-sm" style={{marginTop:4}} onClick={()=>setSellers([...sellers,{name:""}])}>+ Novo vendedor</button>
+            </div>}
+
+            {ctab==="pin"&&<div className="card">
+              <div className="ctitle"><span className="dot"/>ALTERAR PIN DE ACESSO</div>
+              <p style={{fontSize:12,color:"var(--t2)",marginBottom:14}}>O PIN protege o acesso às configurações. Compartilhe apenas com administradores.</p>
+              <div className="form-row" style={{maxWidth:300}}>
+                <div>
+                  <span className="lbl">Novo PIN</span>
+                  <input type="password" maxLength={6} placeholder="Novo PIN" value={adminPin} onChange={e=>setAdminPin(e.target.value.replace(/\D/g,""))}/>
+                </div>
+              </div>
+              <button className="btn btn-gr btn-sm" style={{marginTop:8}} onClick={()=>savePin(adminPin)}>Salvar PIN</button>
+            </div>}
+
+            <div className="card" style={{marginTop:12,background:"linear-gradient(135deg,rgba(59,130,246,.06),rgba(139,92,246,.06))",border:"1px solid rgba(59,130,246,.2)"}}>
+              <div className="ctitle"><span className="dot bl"/>EXPORTAR CONFIGURAÇÃO</div>
+              <p style={{fontSize:12,color:"var(--t2)",marginBottom:10}}>Copie o JSON abaixo e envie ao administrador para embutir no código.</p>
+              <button className="btn btn-bl btn-sm" onClick={()=>{
+                const cfg=JSON.stringify({promos,kits,sellers,products,bonifs,ncmData},null,2)
+                try{const ta=document.createElement("textarea");ta.value=cfg;ta.style.cssText="position:fixed;left:-9999px";document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);msg("✓ Config copiada!")}catch(e){msg("Erro ao copiar")}
+              }}>📋 Copiar config (JSON)</button>
+            </div>
+
+            <div style={{fontSize:12,color:"var(--t3)",marginTop:8}}>
+              🔒 Área restrita · Alterações salvas automaticamente · <button style={{background:"none",border:"none",color:"var(--re)",cursor:"pointer",fontSize:12,fontFamily:"inherit",textDecoration:"underline"}} onClick={()=>{setCfgAuth(false);setTab("pedido")}}>Sair da config</button>
+            </div>
+          </>}
+
+        </div>
+      </div>
+    </>
+  )
+}
+
+const root=ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App/>);
+</script>
+</body>
+</html>
